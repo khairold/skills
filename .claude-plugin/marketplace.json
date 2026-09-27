@@ -1,0 +1,17 @@
+{
+  "name": "khairold",
+  "owner": { "name": "Khairold Safri" },
+  "metadata": {
+    "description": "Claude Code skills by Khairold Safri.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "khairold",
+      "description": "Khairold's skills. dot-plan: plan, run, gate, audit and close an unattended multi-phase agent build kept in .plan/.",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/dot-plan"]
+    }
+  ]
+}

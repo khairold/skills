@@ -1,0 +1,19 @@
+# .plan/config — read by every dot-plan mode. key = value; # starts a comment.
+
+build   = <the gate: green before every commit; its outputs must be git-ignored>
+quick   = <fast checks while working; never the gate>
+full    = <every check, at each phase gate>
+discard =                             # empty: the skill reverts only the worker's files, diff saved
+verify  =                             # optional end-to-end check; empty means skipped
+verify_paths =                        # per item only when these paths moved; always at the gate
+
+worker_model   = opus                 # latest Opus; else the session's own model
+reviewer_model = fable                # latest Fable; else latest Opus, fresh context, logged
+risky =                               # paths whose changes get a review per item
+item_timeout   = 1800                 # seconds; stopped only when past this and the tree stopped growing
+commit_prefixes = app, docs, tests, plan
+                                      # keep plan: it is used for gate, audit and log commits
+
+lands  = local                        # local: commits on main, never pushes
+                                      # branch: one branch per plan, rebased at each gate, PR at close
+branch =                              # branch mode only, following the team's naming rule
