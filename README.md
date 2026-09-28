@@ -6,6 +6,7 @@ Claude Code skills by Khairold Safri.
 |---|---|
 | [dot-plan](skills/dot-plan/SKILL.md) | Build software with AI agents from a phased plan kept in `.plan/`, mostly unattended. One skill, five modes: `init`, `run`, `gate`, `audit`, `close`. |
 | [agent-guides](skills/agent-guides/SKILL.md) | Make a codebase legible to an agent that arrives cold: a short guide beside each part of the code, a root guide cut to pointers, one place per fact, kept true by a generator and tests in your own suite. |
+| [codebase-audit](skills/codebase-audit/SKILL.md) | Audit a codebase before a refactor with one agent per lens, fold the reports into axes of work in a safe order, and hand them to a build plan; or sweep the codebase for one bug class that keeps coming back. |
 
 ## Install
 
@@ -58,3 +59,19 @@ main.
 4. It adds a generator script to your repo for the facts the code already knows, and tests to
    your own suite that fail when a guide goes stale.
 5. `/agent-guides <path>` refreshes one folder's guide; `/agent-guides --check` only reports.
+
+## codebase-audit in one minute
+
+1. `/codebase-audit` surveys the codebase (parts, data, entry points, tests, guidance, recent
+   history) and proposes which lenses to run. You confirm or change the set.
+2. One read-only agent per lens runs in parallel: boundaries, state, write paths and sensitive
+   data, module shape, tests, agent guidance, resilience, data model, types and contracts, or
+   a lens of your codebase's own. Each writes a report with `file:line` evidence.
+3. It folds the reports into `AXES.md`: what several lenses flagged, the bugs found in finished
+   work, the axes of work with what "done" looks like and what each depends on, and a suggested
+   order that starts with a safety net of snapshot tests.
+4. It puts the open decisions to you, records your answers, and hands the result to
+   `/dot-plan init` as the spec.
+5. `/codebase-audit "<bug class>"` sweeps for one recurring bug instead: the invariant it
+   breaks, parallel sweeps, confirmed bugs and latent risks, small fixes, and the rule written
+   into the guide of the folder it governs. `--check` reports without writing files.

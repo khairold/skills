@@ -5,17 +5,18 @@
   },
   "metadata": {
     "description": "Claude Code skills by Khairold Safri.",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "plugins": [
     {
       "name": "khairold",
-      "description": "Khairold's skills. dot-plan: plan, run, gate, audit and close an unattended multi-phase agent build kept in .plan/. agent-guides: per-folder guides, a short root guide, one place per fact, kept true by tests.",
+      "description": "Khairold's skills. dot-plan: plan, run, gate, audit and close an unattended multi-phase agent build kept in .plan/. agent-guides: per-folder guides, a short root guide, one place per fact, kept true by tests. codebase-audit: audit a codebase by lens before a refactor, fold the findings into axes of work, or sweep for one recurring bug class.",
       "source": "./",
       "strict": false,
       "skills": [
         "./skills/dot-plan",
-        "./skills/agent-guides"
+        "./skills/agent-guides",
+        "./skills/codebase-audit"
       ]
     }
   ]
