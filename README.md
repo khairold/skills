@@ -5,6 +5,7 @@ Claude Code skills by Khairold Safri.
 | Skill | What it does |
 |---|---|
 | [dot-plan](skills/dot-plan/SKILL.md) | Build software with AI agents from a phased plan kept in `.plan/`, mostly unattended. One skill, five modes: `init`, `run`, `gate`, `audit`, `close`. |
+| [agent-guides](skills/agent-guides/SKILL.md) | Make a codebase legible to an agent that arrives cold: a short guide beside each part of the code, a root guide cut to pointers, one place per fact, kept true by a generator and tests in your own suite. |
 
 ## Install
 
@@ -45,3 +46,15 @@ example `/dot-plan init`. Re-run the command to update.
 It needs `bash`, `git` and `awk`. Work lands on main locally by default, or on one branch per
 plan with a pull request at the end (`lands = branch` in `.plan/config`). It never pushes to
 main.
+
+## agent-guides in one minute
+
+1. `/agent-guides` surveys the whole codebase: its parts, every guidance file and what it
+   claims, stale or duplicated facts, build history left in code comments, and how many tokens
+   a cold agent reads before a safe change.
+2. It proposes one screen of changes and waits for you to confirm.
+3. It writes a short guide beside each part of the code and cuts the root guide to at most 80
+   lines of pointers, the loop and your hard rules.
+4. It adds a generator script to your repo for the facts the code already knows, and tests to
+   your own suite that fail when a guide goes stale.
+5. `/agent-guides <path>` refreshes one folder's guide; `/agent-guides --check` only reports.
