@@ -12,7 +12,8 @@ everything else is the same. `--status` prints one health line and exits (see th
 
 1. `.plan/PLAN.md` exists, has a `Current Phase:` header and at least one open `- [ ]` item
    outside the Parking Lot. `.plan/config` exists. If not, stop and say what is missing.
-2. Read `config`, then `ENGINE.md` if it exists, then `MEMORY.md` Rails. Not the whole plan.
+2. Read `config`, then `ENGINE.md` if it exists, then `MEMORY.md` Rails, then the resume card
+   at the top of SUPERVISOR-LOG (§7). Not the whole plan.
 3. **The lock.** If `.plan/logs/run.lock` exists: with `mode=attended`, another session is
    live with a human; stop and say so. Otherwise, a `beat` younger than an hour means another
    run is live: stop and say so. Older: it is stale; note it and take over.
@@ -60,6 +61,13 @@ Each iteration:
    A phase whose items are all `[x]` or `[~]`: read `$SKILL/references/gate.md` and run the
    gate without asking. `--until` reached: stop (§5).
 
+**An audit-round item** (`CREATE TASKS: re-audit …`, init.md "Audit rounds") runs differently.
+Read `codebase-audit`'s `references/reaudit.md`. Write the lens brief to `.plan/logs/` and
+launch every lens agent yourself, in one message, read-only, on `worker_model`; log one
+`worker <item>-lenses` EV line when the last report is in. Check no lens touched anything but
+its report (`git status`), then give the fold to one worker like any other item. A dry round
+(no High, no Medium) adds no phase: the plan is done, go to the gate and then stop (§5).
+
 ## 3. The batch review
 
 At the end of a sub-phase, or of a phase with no sub-phases: the reviewer reads
@@ -67,6 +75,10 @@ At the end of a sub-phase, or of a phase with no sub-phases: the reviewer reads
 of the first commit whose body has `Plan: 3B.` (`git log --reverse --grep='Plan: 3B\.'`), or
 `Plan: 5.` for a whole phase. Log the time spent as `EV … batch <3B> <seconds>`. Skip it when there are
 none. Must and should findings become one fix item, done and committed like any other item.
+Ask the reviewer, for any surface the phase fixed, "what path is left on this surface?": the
+paths the items did not take are where the next round's finding usually is. A fix item made
+here gets its own review when it touches a risky path or the surface it was found on; a fix
+committed unreviewed at a gate has widened what it fixed.
 
 ## 4. Commit
 
@@ -99,7 +111,10 @@ none. Must and should findings become one fix item, done and committed like any 
 - **Stop** when every item is `[x]` or `[~]`, when everything left depends on a `[~]`, or when
   `--until` is reached. Then: delete the heartbeat cron, remove the lock, log the handoff line,
   `EV <epoch> <iso> stop - 0`, push the notification. If nothing is left in the plan, write
-  `REPORT.md` (see close.md, step 1) and say `/dot-plan close` is next.
+  `REPORT.md` (see close.md, step 1) and say `/dot-plan close` is next. Write it yourself or
+  save a subagent's text verbatim: the harness may refuse a subagent writing a report file.
+- **Never stop for the context.** A long run is not a reason to stop or hand over: the harness
+  summarises the conversation when it grows long, and the run goes on (§6).
 
 ## 6. Staying alive
 
@@ -117,15 +132,40 @@ none. Must and should findings become one fix item, done and committed like any 
   not grow since the last beat. Then TaskStop it and treat it as red (§5).
 - **Long commands.** The gate, verify and anything else that may pass a few minutes run with
   `run_in_background`; wait for the notification.
-- **Context.** Write every SUPERVISOR-LOG entry so a fresh session could resume from the log
-  alone. After a context summary, re-read the tail of SUPERVISOR-LOG before acting.
+- **Context.** The run lives in the human's one interactive session and is meant to outlast
+  many context summaries. It never starts a headless or print-mode session to carry on, and it
+  cannot type `/compact` or `/new` (built-in commands are not tools); the harness compacts on
+  its own. So the supervisor makes compaction cheap and safe:
+  - **Write for a stranger.** Every SUPERVISOR-LOG entry lets a fresh session resume from the
+    log alone. Keep the **resume card** (§7) at the top of SUPERVISOR-LOG true.
+  - **After a summary,** before acting: re-read `config`, `ENGINE.md`, the Rails, the lock, the
+    resume card and the tail of SUPERVISOR-LOG. Check the heartbeat still exists (CronList);
+    re-arm it if not.
+  - **Keep the context lean.** Never read a subagent's transcript. Save each worker or reviewer
+    summary to `.plan/logs/` and keep only its verdict in mind. Keep command output short
+    (`tail`, `grep`, counts). Fewer summaries means less lost between them.
+  - **If the session ends anyway** (closed, crashed), the human types `/dot-plan run` in a new
+    one, and preflight resumes from the lock and the log.
 - **Notifications.** PushNotification (load it with ToolSearch if deferred) when a phase
   finishes, when the run stops, and when an item is skipped for the human. None waits for an
   answer. `--attended` needs none.
 
 ## 7. SUPERVISOR-LOG format
 
-Human lines for reading, `EV` lines for `numbers.sh`. Timestamps: `date +%s` and `date -Iseconds`.
+**The resume card** sits at the top of SUPERVISOR-LOG, under the title, and is rewritten (not
+appended) at each launch, each gate and each stop: five lines a summarised supervisor reads
+first.
+
+```
+## Resume (rewritten 2026-10-01T07:12+08:00)
+- Phase 19 (round 7), next: 19.1 · last PASS 9fbbdf9fc6a2 · lock: session d81d46be
+- Blocking the human: #51 (blocks 12.4) · asked: #100 (audit)
+- Practices in force: gate fix items on the mail surface get a review; the Gate line is check.sh's hash
+- Watch: <a flaky check, a slow test near its limit, a surface drawing findings round after round>
+```
+
+Below it, human lines for reading and `EV` lines for `numbers.sh`. Timestamps: `date +%s` and
+`date -Iseconds`.
 
 ```
 ## Launch 2026-09-27T20:21+08:00 · session <id> · phase 5 · mode local

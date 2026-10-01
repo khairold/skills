@@ -44,6 +44,12 @@ example `/dot-plan init`. Re-run the command to update.
 5. `/dot-plan close` writes the report, moves what is worth keeping into your docs, and
    deletes `.plan/`.
 
+A plan built from an audit can **loop until dry**: after the fixes, an audit round re-audits
+the code (`/codebase-audit --round N`), plans the next fixes and the next round, and the plan
+ends at a round with no High or Medium. There is no cap on rounds. The run stays in your one
+interactive session: it writes down enough (a resume card at the top of its log) to carry on
+through any number of context summaries.
+
 It needs `bash`, `git` and `awk`. Work lands on main locally by default, or on one branch per
 plan with a pull request at the end (`lands = branch` in `.plan/config`). It never pushes to
 main.
@@ -65,13 +71,17 @@ main.
 1. `/codebase-audit` surveys the codebase (parts, data, entry points, tests, guidance, recent
    history) and proposes which lenses to run. You confirm or change the set.
 2. One read-only agent per lens runs in parallel: boundaries, state, write paths and sensitive
-   data, module shape, tests, agent guidance, resilience, data model, types and contracts, or
-   a lens of your codebase's own. Each writes a report with `file:line` evidence.
+   data, module shape, tests, agent guidance, resilience, data model, types and contracts,
+   hostile input and access, or a lens of your codebase's own. Each writes a report with `file:line` evidence.
 3. It folds the reports into `AXES.md`: what several lenses flagged, the bugs found in finished
    work, the axes of work with what "done" looks like and what each depends on, and a suggested
    order that starts with a safety net of snapshot tests.
 4. It puts the open decisions to you, records your answers, and hands the result to
    `/dot-plan init` as the spec.
-5. `/codebase-audit "<bug class>"` sweeps for one recurring bug instead: the invariant it
+5. `/codebase-audit --round N --since <sha>` re-audits after a build: each lens gets its
+   previous report and says what is fixed, partly fixed or made worse, then what is new. The
+   fold plans the next round with reversible defaults, and a round with no High or Medium is
+   dry. A surface that draws a finding two rounds running gets a fix for its whole class.
+6. `/codebase-audit "<bug class>"` sweeps for one recurring bug instead: the invariant it
    breaks, parallel sweeps, confirmed bugs and latent risks, small fixes, and the rule written
    into the guide of the folder it governs. `--check` reports without writing files.

@@ -1,6 +1,6 @@
 ---
 name: dot-plan
-description: Build software with AI agents from a phased plan kept in .plan/, mostly unattended. One skill, five modes - init (turn a spec into a plan), run (the build, one fresh agent per item), gate (between phases), audit (the process, from above), close (finish the plan). Use when the user says /dot-plan, or asks to plan a build from a spec, run or continue the plan, supervise the build, run a phase gate, audit the build process, or close the plan.
+description: Build software with AI agents from a phased plan kept in .plan/, mostly unattended. One skill, five modes - init (turn a spec into a plan), run (the build, one fresh agent per item), gate (between phases), audit (the process, from above), close (finish the plan). A plan can loop until dry - fix an audit, re-audit, fix what each round finds, stop at a round with no High or Medium - in one long session that survives context summaries. Use when the user says /dot-plan, or asks to plan a build from a spec, run or continue the plan, supervise the build, run a phase gate, audit the build process, or close the plan.
 ---
 
 # dot-plan
@@ -15,6 +15,9 @@ the results. Everything the agents know lives in `.plan/`, committed next to the
 - **Nothing waits for the human.** What an agent cannot decide goes on a list, the agent picks
   the safest option, and the run continues.
 - **Unfinished work counts for nothing.** An item is done when it is committed on a green gate.
+- **It can loop until dry.** An audit round re-audits the build and plans the next fixes and the
+  next round; the plan ends at a round with no High or Medium. No cap on rounds; one session,
+  kept alive across context summaries by what is written down.
 
 `$SKILL` below means the folder that holds this file.
 

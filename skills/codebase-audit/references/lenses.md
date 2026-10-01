@@ -1,6 +1,6 @@
 # lenses: step 3
 
-Nine default lenses. Each is a set of questions; the report answers them with `file:line`
+Ten default lenses. Each is a set of questions; the report answers them with `file:line`
 evidence, rates each finding High / Medium / Low for the audit's purpose, sketches a target
 design (two or three options when there is a real choice), and ends with open questions for the
 human. Give the lens agent the survey, the commit, its section below and `templates/audit.md`.
@@ -10,6 +10,12 @@ Severity, roughly: **High** = wrong outcome, lost or leaked data, or stuck work 
 
 A finding is a claim about the code. Mark what was reproduced (a test run, a query, a script in
 a scratch folder) and what was only read.
+
+A lens agent writes its report and nothing else. Scratch scripts and copies of the repo go in the
+session's scratch folder, never in the repo and never loose in `/tmp`: a stray file there once
+turned another session's tests red. It does not run the project's test suite in the shared
+checkout while other agents may (they share one test database); it copies the repo to its
+scratch folder and uses a database name of its own.
 
 ## 01 · Boundaries and the import graph
 
@@ -139,3 +145,28 @@ report. Otherwise:
   they form a taxonomy.
 - Import-time side effects and global state that make tests or workers order-dependent.
 - Target: the conventions worth adopting, and a staged path that does not stop the build.
+
+## 10 · Hostile input and access control
+
+- Every door untrusted input comes through: inbound email or messages, uploads, web forms, API
+  bodies, webhooks, files fetched from elsewhere. Who can reach each, and what decides that
+  (sign-in, an allowlist, a signature, a sender check)? What does the check read, and can the
+  sender forge it?
+- What parses that input, and is the parse bounded? Time and memory that grow faster than the
+  input (a regex with `.*?` or a negated class over sender text, a parser that rescans per
+  line, a decode in a slow codec, nested structure), and input with no size cap before the
+  parse. Time the worst shape you can build in a scratch script; a table of size against time
+  is the evidence.
+- What raises on hostile input, and what happens then: is the item kept and shown, set aside
+  with no case, or does it stop a whole queue? One email that holds the only worker is a High
+  even when it is rare.
+- What crosses from the input into something else: a value from a document into an outbound
+  header or a query, text into a model prompt, a file into a renderer. Is each bounded and
+  validated where it crosses?
+- Sandboxes and jails: what a worker that runs hostile files can reach (network, other
+  requests' files, the kernel's namespaces), and what proves it on the target OS.
+- Access control on screens and endpoints: who sees what, what is logged when they do, and what
+  an unauthenticated caller can learn (error pages, timing, health endpoints).
+- Things only the target environment can prove (the mail gateway, the OS, a real identity
+  provider): say so and name the check, rather than rating them on a guess.
+

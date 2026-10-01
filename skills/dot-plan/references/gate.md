@@ -6,9 +6,12 @@ done exactly as in run.md §2, by a fresh worker, and committed like any other i
 
 1. **Full checks.** `$SKILL/scripts/gate.sh full --label gate-<P>` in the background, and
    `verify` from `config` when it exists. Start the services they need first and stop them
-   after (ENGINE.md says which). Red: one fix item, done like any other, then the full checks
-   again. Still red: DEFERRED row, push, stop the run. Each `full` run's time is already in
-   gate.log; log verify as `EV … verify gate-<P> <seconds>`.
+   after (ENGINE.md says which). Read the result before you write it down: log PASS only from
+   the line the check printed. Red on a step that needs the network (a dependency audit, a
+   download): run that step alone; if it passes, it was a blip, so re-run the full checks once
+   (not counted as a fix). Red otherwise: one fix item, done like any other, then the full
+   checks again. Still red: DEFERRED row, push, stop the run. Each `full` run's time is already
+   in gate.log; log verify as `EV … verify gate-<P> <seconds>`.
 2. **Exit criteria.** Each one shown to hold, with evidence: a test name, a command and its
    output, a file. One that does not hold becomes a fix item. Never weaken a criterion to pass
    it; a criterion that turns out wrong is a DRIFT row and a DEFERRED row.
@@ -18,7 +21,9 @@ done exactly as in run.md §2, by a fresh worker, and committed like any other i
    - Any one-way file (a coverage floor, a version, a golden file, a rights row, anything
      ENGINE.md lists) moved only with a reason in its commit.
    - Nothing on the not-ours list was committed.
-4. **Batch review** of the last sub-phase, or of the phase if it has none (run.md §3).
+4. **Batch review** of the last sub-phase, or of the phase if it has none (run.md §3), with
+   the question "what path is left on this surface?" for each surface the phase fixed. Its fix
+   item is reviewed like an item when it touches a risky path or that surface.
 5. **The numbers.** Log `EV <epoch> <iso> phase-end <P> 0` now, after the checks and reviews
    above, so their time counts in this phase. Then `$SKILL/scripts/numbers.sh <P>` prints items, items per hour, files per
    item, run minutes, process minutes and share, reviewer calls and catches, skips and times
@@ -31,7 +36,7 @@ done exactly as in run.md §2, by a fresh worker, and committed like any other i
 7. **Proposals,** at most three, removals first. A removal is applied now. An addition is
    applied only when it names the escaped defect it answers; otherwise it is a DEFERRED row. A
    process share that rose at two gates running adds a DEFERRED row asking the human for an
-   `audit`.
+   `audit`. The run does not stop for it: the row is the ask.
 8. **Write the phase-gate entry** in SESSION-LOG.md:
 
    ```
@@ -50,6 +55,7 @@ done exactly as in run.md §2, by a fresh worker, and committed like any other i
    that are not trivial: `git rebase --abort`, a DEFERRED row, carry on unrebased. After a
    rebase, `gate.sh build --label gate-<P>-rebased`; red is a fix item. Push the plan's branch
    (`--force-with-lease` after a rebase). Never push main.
-10. Mark the phase done in PLAN.md (`## Phase 5 — … ✓`), move `Current Phase:` on, log
+10. Rewrite the resume card at the top of SUPERVISOR-LOG (run.md §7). Mark the phase done in
+    PLAN.md (`## Phase 5 — … ✓`), move `Current Phase:` on, log
     `EV <epoch> <iso> phase-start <next> 0`, commit `plan: phase 5 gate`, push the
     notification, and go back to `run`, unless `--until` said stop.

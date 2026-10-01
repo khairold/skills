@@ -1,6 +1,6 @@
 ---
 name: codebase-audit
-description: Audit a whole codebase before a refactor, or sweep it for one bug class that keeps coming back. The full audit fans out one read-only agent per lens (boundaries, state, write paths and sensitive data, module shape, tests, agent guidance, resilience, data model, types and contracts), then folds the reports into axes of work in dependency order, stops for the human's decisions and hands the result to a build plan. The drift mode turns a recurring bug into the invariant it breaks, sweeps every place that could break it in parallel, and reports confirmed bugs, latent risks and the rules worth writing down. --check reports without writing files. Use when the user says /codebase-audit, or asks to "audit the codebase", "what should we refactor", "is this ready for a big refactor", "find the weak spots before prod", "this bug keeps coming back", "find every place that does X wrong" or "systemic drift".
+description: Audit a whole codebase before a refactor, or sweep it for one bug class that keeps coming back. The full audit fans out one read-only agent per lens (boundaries, state, write paths and sensitive data, module shape, tests, agent guidance, resilience, data model, types and contracts, hostile input and access), then folds the reports into axes of work in dependency order, stops for the human's decisions and hands the result to a build plan. The re-audit runs the lenses again after a build, each given its previous report, folds what is new into the next round of work with unattended defaults, and calls the codebase dry when a round finds no High or Medium. The drift mode turns a recurring bug into the invariant it breaks, sweeps every place that could break it in parallel, and reports confirmed bugs, latent risks and the rules worth writing down. --check reports without writing files. Use when the user says /codebase-audit, or asks to "audit the codebase", "what should we refactor", "is this ready for a big refactor", "find the weak spots before prod", "this bug keeps coming back", "find every place that does X wrong", "systemic drift", "re-audit after the build" or "loop until dry".
 ---
 
 # codebase-audit
@@ -27,6 +27,7 @@ teammate can check, and turn that into work in an order that is safe to build.
 |---|---|---|---|
 | `/codebase-audit` | full audit: survey, lenses in parallel, axes, decisions | one report per lens + `AXES.md` | confirms the lens set; makes the open decisions |
 | `/codebase-audit "<bug class>"` | drift sweep for one recurring bug class | one drift report; fixes and rules after confirmation | confirms the axes; confirms the fixes |
+| `/codebase-audit --round N --since <sha>` | re-audit after a build: the lenses again, each given its round N-1 report | one report per lens + the round's `AXES.md` | none needed: defaults stand in for decisions, the human confirms them later |
 | `--check` (with either) | the same reading | nothing; the synthesis in chat | reads it |
 
 ## The full audit
@@ -70,10 +71,24 @@ For a bug class that has already shipped more than once: same shape, different f
    the guide of the folder it governs (`/agent-guides <path>` if the project uses it). Work that
    spans many files becomes a plan, not a drive-by.
 
+## The re-audit
+
+After a build has changed the codebase, to find what it missed or broke. Read
+`$SKILL/references/reaudit.md` first; it carries the lens brief, the fold and when a round is
+dry. In a dot-plan build this is the "audit round" item, repeated until dry.
+
+1. Write the lens brief once (the previous round's commit, the build's record, the open items)
+   and launch every lens on it in one message, each given its previous report.
+2. Fold: count one defect once, re-check every High and Medium against the code, plan the fix
+   phase and the next round, and give every human choice a reversible default.
+3. A surface that drew a High or Medium two rounds running gets a fix for the whole class.
+4. A round with no High and no Medium, after every Low is re-read against the Medium bar, is
+   dry: record it and plan nothing.
+
 ## Working well
 
 - **Size the fan-out to the codebase.** A small service may need four lenses; a large monolith
-  all nine and a tenth of its own. Above ten, the synthesis suffers.
+  all ten, or an eleventh of its own. Above eleven, the synthesis suffers.
 - **Give each agent what it cannot rediscover cheaply:** the survey, the commit, the decisions
   already made, and the shape its report must take. Tell it not to edit files.
 - **The strongest model for the lenses and the synthesis.** This is judgement work; a shallow

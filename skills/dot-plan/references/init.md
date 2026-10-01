@@ -14,7 +14,9 @@ The human is present. Ask with AskUserQuestion; give a recommendation first in e
 
 Four questions. The answers become the Rails section of `MEMORY.md`, which a run never reopens.
 
-1. **The goal.** What "done" means for the whole plan.
+1. **The goal.** What "done" means for the whole plan. A plan built from an audit can end
+   "loop until dry": fix the audit, then re-audit, fix what the round finds, and stop only at
+   a round with no High and no Medium (see "Audit rounds" below).
 2. **What must not change.** Behaviour, interfaces, data, files the plan may not touch.
 3. **What only a human can do.** External systems, sign-offs, device checks, Legal. Items that
    need these are marked `[~]` or human-verify when planned.
@@ -46,6 +48,25 @@ Then confirm, in one question each or one combined question:
   seen can be a `CREATE TASKS` item: it reads the data, inserts concrete items below itself,
   and ends.
 - A Parking Lot at the end of PLAN.md holds what was discussed and not planned.
+
+### Audit rounds
+
+When the goal is "loop until dry", the last phase is an audit round, shaped like this:
+
+```
+## Phase 11 — Round 3 (loop until dry)
+
+**Goal:** find what the earlier phases missed or broke.
+**Exit criteria:** a round finds no High or Medium (the plan is dry), or its findings are planned.
+
+- [ ] 11.1 — CREATE TASKS: re-audit HEAD into `docs/audit-3/` (`/codebase-audit --round 3`),
+  each lens given its round-2 report; its High and Medium findings become Phase 12 items and a
+  Phase 13 audit round after them; none means the plan is dry · reads: <round 2's AXES>
+```
+
+The fold writes the fix phase and the next audit round below itself, so the plan grows one
+round at a time. There is no limit on rounds: the run stops when one comes back dry. The round
+folders' lens reports go on the never-rewrite line in `ENGINE.md`.
 
 ## 4. Write
 
