@@ -10,6 +10,8 @@ import {
 const PANE = 'cockpit'
 const TICK_MS = 20_000
 const FEED_LINES = 8
+// The feed's item column; longer items ("3.2-finish") end in "…".
+const FEED_ITEM_MAX = 6
 // How long the band flags a new DEFERRED row.
 const NEW_ROW_MS = 30 * 60_000
 const FEED_COLOR: Record<string, string> = { Verdict: 'green', Reviewer: 'yellow', Fix: 'cyan', Human: 'magenta', Stopped: 'red' }
@@ -300,7 +302,8 @@ export const register: Register = (on, options) => {
         await update($, sentRows, list => [...list.filter(x => !ids.includes(x.id)), ...ids.map(id => ({ id, at: now }))])
       }
     }
-    const itemWidth = Math.max(0, ...s.feed.map(l => l.item.length))
+    const itemWidth = Math.min(FEED_ITEM_MAX, Math.max(0, ...s.feed.map(l => l.item.length)))
+    const feedItem = (item: string) => (item.length > FEED_ITEM_MAX ? `${item.slice(0, FEED_ITEM_MAX - 1)}…` : item.padEnd(itemWidth))
 
     return (
       <Box flexDirection="column" width={width}>
@@ -462,7 +465,7 @@ export const register: Register = (on, options) => {
         <Text bold>FEED</Text>
         {s.feed.map((l, i) => (
           <Text wrap={i === s.feed.length - 1 ? 'wrap' : 'truncate'} dimColor={!FEED_COLOR[l.kind]}>
-            <Text dimColor>{`${l.time.padEnd(5)} ${l.item.padEnd(itemWidth)} `}</Text>
+            <Text dimColor>{`${l.time.padEnd(5)} ${feedItem(l.item)} `}</Text>
             <Text color={FEED_COLOR[l.kind]}>{`${l.kind}:`}</Text>
             {` ${l.text}`}
           </Text>
