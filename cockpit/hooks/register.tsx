@@ -10,6 +10,9 @@ import {
 const PANE = 'cockpit'
 const TICK_MS = 20_000
 const FEED_LINES = 8
+// How long the band flags a new DEFERRED row.
+const NEW_ROW_MS = 30 * 60_000
+const FEED_COLOR: Record<string, string> = { Verdict: 'green', Reviewer: 'yellow', Fix: 'cyan', Human: 'magenta', Stopped: 'red' }
 const snap = atom({ plugin: 'khairold', key: 'snap' } as const, null)
 const notes = atom({ plugin: 'khairold', key: 'notes' } as const, [])
 const sentRows = atom({ plugin: 'khairold', key: 'sentRows' } as const, [])
@@ -33,7 +36,8 @@ let overseerModel = 'fable'
 let cwdDir = ''
 let sig = ''
 let seen: string[] | null = null
-let parsed: Omit<CockpitSnap, 'now'> | null = null
+let parsed: Omit<CockpitSnap, 'now' | 'newAt'> | null = null
+let newAt = 0
 let raw = { plan: '', sup: '', gate: '' }
 let marker = ''
 let isThinking = false
@@ -50,10 +54,11 @@ async function refresh($: EngineInterface) {
     const ids = parsed.deferred.map(d => d.id)
     const fresh = seen ? ids.filter(id => !seen!.includes(id)) : []
     seen = ids
+    if (fresh.length) newAt = await $.clock.now()
     if (fresh.length) $.ui.toast(`dot-plan: new DEFERRED ${fresh.map(id => `#${id}`).join(', ')}`)
   }
   const now = await $.clock.now()
-  await update($, snap, () => ({ ...parsed!, now }))
+  await update($, snap, () => ({ ...parsed!, now, newAt }))
   await oversee($, false)
 }
 
@@ -112,7 +117,7 @@ async function oversee($: EngineInterface, isForced: boolean) {
   }
 }
 
-async function load($: EngineInterface): Promise<Omit<CockpitSnap, 'now'>> {
+async function load($: EngineInterface): Promise<Omit<CockpitSnap, 'now' | 'newAt'>> {
   const text = (f: string) => $.fs.read(`${root}/${f}`).then(t => String(t)).catch(() => '')
   try {
     const [plan = '', deferred = '', sup = '', gate = '', lock = ''] = await Promise.all(FILES.map(text))
@@ -248,7 +253,11 @@ export const register: Register = (on, options) => {
           {s.gate && (
             <Text color={s.gate.result === 'PASS' ? 'green' : 'red'}>{`  gate ${s.gate.result} ${ago(s.gate.at, s.now)}`}</Text>
           )}
-          {s.deferred.length > 0 && <Text color="yellow">{`  ⚑ ${s.deferred.length} open`}</Text>}
+          {s.deferred.length > 0 && (s.now - s.newAt < NEW_ROW_MS ? (
+            <Text color="red" bold>{`  ⚑ ${s.deferred.length} open · new`}</Text>
+          ) : (
+            <Text color="yellow">{`  ⚑ ${s.deferred.length} open`}</Text>
+          ))}
           {!live && <Text color="red">  run not live</Text>}
           {isRunSession() ? <Text dimColor>  (run session)</Text> : !(await read($, isActive)) && <Text dimColor>  /cockpit</Text>}
         </Box>
@@ -275,6 +284,7 @@ export const register: Register = (on, options) => {
     const sentRow = (id: string) => sent.find(x => x.id === id)?.at ?? 0
     const kept = (await read($, notes)).filter(n => !n.isDismissed)
     const open = kept.slice(-5).reverse()
+    const itemWidth = Math.max(0, ...s.feed.map(l => l.item.length))
 
     return (
       <Box flexDirection="column" width={width}>
@@ -331,7 +341,7 @@ export const register: Register = (on, options) => {
               ) : (
                 <Button
                   key={`accept-${d.id}`}
-                  label={sending ? 'Accept default (send)' : 'Accept default'}
+                  label="Accept default"
                   onPress={async press => {
                     const now = await $.clock.now()
                     const date = new Date(now).toISOString().slice(0, 10)
@@ -354,7 +364,12 @@ export const register: Register = (on, options) => {
 
         <Box gap={1}>
           <Text bold color="magenta">OVERSEER</Text>
-          <Text dimColor>{`${ov.status}${ov.lastAt ? ` · ${ago(Math.round(ov.lastAt / 1000), s.now)} ago` : ''}`}</Text>
+          <Text
+            color={ov.status === 'thinking' ? 'yellow' : ov.status.startsWith('error') ? 'red' : undefined}
+            bold={ov.status === 'thinking'}
+            dimColor={ov.status !== 'thinking' && !ov.status.startsWith('error')}
+          >
+            {`${ov.status === 'thinking' ? 'thinking…' : ov.status}${ov.lastAt ? ` · ${ago(Math.round(ov.lastAt / 1000), s.now)} ago` : ''}`}</Text>
           <Text dimColor>{`· ${ov.calls ?? 0} call${ov.calls === 1 ? '' : 's'} · ${compact(ov.tokensIn ?? 0)} in · ${compact(ov.tokensOut ?? 0)} out`}</Text>
           <Button key="ask-overseer" label="Ask now" onPress={() => oversee($, true)} />
         </Box>
@@ -409,8 +424,12 @@ export const register: Register = (on, options) => {
 
         <Text> </Text>
         <Text bold>FEED</Text>
-        {s.feed.map(l => (
-          <Text wrap="truncate" dimColor>{l}</Text>
+        {s.feed.map((l, i) => (
+          <Text wrap={i === s.feed.length - 1 ? 'wrap' : 'truncate'} dimColor={!FEED_COLOR[l.kind]}>
+            <Text dimColor>{`${l.time.padEnd(5)} ${l.item.padEnd(itemWidth)} `}</Text>
+            <Text color={FEED_COLOR[l.kind]}>{`${l.kind}:`}</Text>
+            {` ${l.text}`}
+          </Text>
         ))}
       </Box>
     )

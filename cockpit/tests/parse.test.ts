@@ -78,7 +78,10 @@ test('feed: human lines, newest last, watch', async () => {
     '- Verdict: committed.',
   ].join('\n')
   const f = parseFeed(log, 2)
-  expect(f.feed).toEqual(['17:14 1.1  Proof: PASS abc', '17:14 1.1  Verdict: committed.'])
+  expect(f.feed).toEqual([
+    { time: '17:14', item: '1.1', kind: 'Proof', text: 'PASS abc' },
+    { time: '17:14', item: '1.1', kind: 'Verdict', text: 'committed.' },
+  ])
   expect(f.watch).toBe('process share rising')
 })
 

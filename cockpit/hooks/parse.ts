@@ -1,6 +1,7 @@
 // Pure parsers over the .plan/ files. No `$` here, so tests run them directly.
 import type {
   CockpitDeferred,
+  CockpitFeedLine,
   CockpitGate,
   CockpitLock,
   CockpitPhase,
@@ -101,7 +102,7 @@ function plain(text: string) {
 // Human-readable lines from SUPERVISOR-LOG, newest last: each prefixed with the
 // time of the EV line before it and the item of its iteration.
 export function parseFeed(log: string, count: number) {
-  const feed: string[] = []
+  const feed: CockpitFeedLine[] = []
   let time = ''
   let item = ''
   for (const l of log.split('\n')) {
@@ -110,7 +111,7 @@ export function parseFeed(log: string, count: number) {
     const ev = l.match(/^EV \d+ \S+T(\d\d:\d\d)/)
     if (ev) time = ev[1] ?? ''
     const human = l.match(/^- (Proof|Reviewer|Fix|Verdict|Human|Stopped): (.*)$/)
-    if (human) feed.push(`${time.padEnd(5)} ${item.padEnd(4)} ${human[1]}: ${human[2]}`)
+    if (human) feed.push({ time, item, kind: human[1] ?? '', text: human[2] ?? '' })
   }
   const watch = log.split('\n').find(l => l.startsWith('- Watch:'))?.slice(9).trim() ?? ''
   return { feed: feed.slice(-count), watch }

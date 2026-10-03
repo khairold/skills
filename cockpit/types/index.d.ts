@@ -33,6 +33,13 @@ export type CockpitLock = {
   workerSince: number
 }
 
+export type CockpitFeedLine = {
+  time: string
+  item: string
+  kind: string
+  text: string
+}
+
 export type CockpitSnap = {
   now: number
   root: string
@@ -42,9 +49,10 @@ export type CockpitSnap = {
   lock: CockpitLock | null
   gate: CockpitGate | null
   deferred: CockpitDeferred[]
-  feed: string[]
+  feed: CockpitFeedLine[]
   watch: string
   error: string
+  newAt: number
 }
 
 export type CockpitNote = {
