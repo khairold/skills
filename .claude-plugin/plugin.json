@@ -1,0 +1,23 @@
+{
+  "name": "khairold",
+  "version": "0.6.0",
+  "description": "Khairold's skills. dot-plan: plan, run, gate, audit and close an unattended multi-phase agent build kept in .plan/, looping until an audit round comes back dry. agent-guides: per-folder guides, a short root guide, one place per fact, kept true by tests. codebase-audit: audit a codebase by lens before a refactor, fold the findings into axes of work, re-audit after a build until dry, or sweep for one recurring bug class. cockpit: a mod for watching a dot-plan run from a second session (/cockpit).",
+  "author": {
+    "name": "Khairold Safri"
+  },
+  "skills": [
+    "./skills/dot-plan",
+    "./skills/agent-guides",
+    "./skills/codebase-audit"
+  ],
+  "hooks": "./cockpit/hooks/hooks.json",
+  "types": "./cockpit/types/index.d.ts",
+  "userConfig": {
+    "overseerModel": {
+      "type": "string",
+      "title": "Overseer model",
+      "description": "Model alias or id the cockpit's overseer uses; pick one different from the run's workers.",
+      "default": "fable"
+    }
+  }
+}

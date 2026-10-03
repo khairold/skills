@@ -10,11 +10,11 @@ import {
 const PANE = 'cockpit'
 const TICK_MS = 20_000
 const FEED_LINES = 8
-const snap = atom({ plugin: 'dot-plan-cockpit', key: 'snap' } as const, null)
-const notes = atom({ plugin: 'dot-plan-cockpit', key: 'notes' } as const, [])
-const isActive = atom({ plugin: 'dot-plan-cockpit', key: 'isActive' } as const, false)
-const canSend = atom({ plugin: 'dot-plan-cockpit', key: 'canSend' } as const, false)
-const overseer = atom({ plugin: 'dot-plan-cockpit', key: 'overseer' } as const, { status: 'idle', lastAt: 0 })
+const snap = atom({ plugin: 'khairold', key: 'snap' } as const, null)
+const notes = atom({ plugin: 'khairold', key: 'notes' } as const, [])
+const isActive = atom({ plugin: 'khairold', key: 'isActive' } as const, false)
+const canSend = atom({ plugin: 'khairold', key: 'canSend' } as const, false)
+const overseer = atom({ plugin: 'khairold', key: 'overseer' } as const, { status: 'idle', lastAt: 0 })
 
 // The overseer: a different model from the workers, woken by a verdict, a DEFERRED
 // row or a red gate, never more often than MIN_GAP_MS.

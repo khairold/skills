@@ -60,7 +60,7 @@ export type CockpitOverseer = { status: string; lastAt: number }
 
 declare module 'claude-code' {
   interface PluginState {
-    'dot-plan-cockpit': {
+    'khairold': {
       snap: CockpitSnap | null
       notes: CockpitNote[]
       overseer: CockpitOverseer

@@ -1,6 +1,6 @@
 # dot-plan-cockpit
 
-A Claude Code mod: a cockpit for a running [dot-plan](../../skills/dot-plan) build. You watch the
+Part of the `khairold` plugin: a Claude Code mod, a cockpit for a running [dot-plan](../skills/dot-plan/SKILL.md) build. You watch the
 run from a second session, see what needs you, and send decisions back to the orchestrator.
 
 Needs Claude Code 2.1.287 or newer (mods).
@@ -38,12 +38,17 @@ Needs Claude Code 2.1.287 or newer (mods).
 
 | Field | Default | What |
 |---|---|---|
-| `overseerModel` | `fable` | The overseer's model: an alias or id, best one the workers do not use. |
+| `overseerModel` (`khairold.overseerModel`) | `fable` | The overseer's model: an alias or id, best one the workers do not use. |
+
+Commands a mod registers are not prefixed: `/cockpit`, `/overseer`, `/cockpit-ping`. The
+setting is `khairold.overseerModel` in the config menu.
 
 ## Develop
 
+From the repo root:
+
 ```
-claude --plugin-dir <this folder>   # reloads on save
-claude plugin validate <this folder>
-claude plugin test <this folder>
+claude --plugin-dir .                      # reloads on save
+claude plugin validate .claude-plugin/plugin.json
+claude plugin test .
 ```
