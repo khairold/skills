@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { clockTime, compact, usageTotals, envelope, TIMING_NOTE, matchSession, projectSlug, acceptPrompt, ago, discussPrompt, overseerMarker, parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section } from '../hooks/parse'
+import { notesForRow, phaseRows, clockTime, compact, usageTotals, envelope, TIMING_NOTE, matchSession, projectSlug, acceptPrompt, ago, discussPrompt, overseerMarker, parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section } from '../hooks/parse'
 
 const PLAN = `# Plan
 > **Current Phase:** Phase 3
@@ -45,6 +45,9 @@ test('deferred: open rows only, first sentence', async () => {
     '|---|------|------|------|----------------|----------------|--------|',
     '| 1 | 2026-10-03 | 1.2 | JUnit is EPL. More text | x | Resolved 2026-10-03 | 1.2 |',
     '| 6 | 2026-10-03 | 2.3 | cffi 2.1+ is `MIT-0`; not allowed | pin | allow it | 2.3 |',
+    '| 10 | 2026-10-03 | 3.2 | DocAligner sign-off | eval | promote | 3.2 — Closed 2026-10-03: not adopted |',
+    '| 11 | 2026-10-03 | 3.2 | weights | none | fetch — Resolved: human pinned | 3.2 |',
+    '| 14 | 2026-10-03 | 4.1 | OCR cannot ship until this is resolved | eval tier | legal accepts | 4.1 |',
   ].join('\n')
   expect(parseDeferred(md)).toEqual([
     {
@@ -54,6 +57,14 @@ test('deferred: open rows only, first sentence', async () => {
       whatFull: 'cffi 2.1+ is MIT-0; not allowed',
       fallback: 'pin',
       reverse: 'allow it',
+    },
+    {
+      id: '14',
+      item: '4.1',
+      what: 'OCR cannot ship until this is resolved',
+      whatFull: 'OCR cannot ship until this is resolved',
+      fallback: 'eval tier',
+      reverse: 'legal accepts',
     },
   ])
 })
@@ -117,4 +128,21 @@ test('overseer usage counts every input token', async () => {
 
 test('clock time is HH:MM', async () => {
   expect(clockTime(new Date(2026, 9, 3, 6, 5).getTime())).toBe('06:05')
+})
+
+test('phase rows fold done and upcoming phases', async () => {
+  const ph = (n: string, done: number, total: number) => ({ n, title: `T${n}`, isDone: done === total, done, skipped: 0, total })
+  const rows = phaseRows([ph('1', 5, 5), ph('2', 4, 4), ph('3', 1, 4), ph('4', 0, 5), ph('5', 0, 3)], '3')
+  expect(rows.map(r => [r.mark, r.label, r.title, r.done, r.total])).toEqual([
+    ['✓', 'P1–2', 'done', 9, 9],
+    ['▸', 'P3', 'T3', 1, 4],
+    [' ', 'P4–5', 'to go', 0, 8],
+  ])
+  expect(phaseRows([ph('1', 5, 5), ph('2', 0, 4), ph('3', 0, 4)], '2').map(r => r.label)).toEqual(['P1', 'P2', 'P3'])
+})
+
+test('notes linked to a DEFERRED row by #id', async () => {
+  const notes = [{ text: 'close #10 now', toRun: '-' }, { text: 'x', toRun: 'see #1 and #100' }, { text: 'none', toRun: '' }]
+  expect(notesForRow('10', notes)).toEqual([notes[0]])
+  expect(notesForRow('1', notes)).toEqual([notes[1]])
 })

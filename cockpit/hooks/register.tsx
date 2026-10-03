@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { CockpitNote, CockpitSnap } from '../types'
 import {
-  acceptPrompt, ago, clockTime, compact, usageTotals, discussPrompt, envelope, matchSession, projectSlug, forwardPrompt, OVERSEER_SYSTEM, overseerMarker, overseerPrompt,
+  acceptPrompt, ago, clockTime, compact, notesForRow, phaseRows, usageTotals, discussPrompt, envelope, matchSession, projectSlug, forwardPrompt, OVERSEER_SYSTEM, overseerMarker, overseerPrompt,
   parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section,
 } from './parse'
 
@@ -273,7 +273,8 @@ export const register: Register = (on, options) => {
     const sending = await read($, canSend)
     const sent = await read($, sentRows)
     const sentRow = (id: string) => sent.find(x => x.id === id)?.at ?? 0
-    const open = (await read($, notes)).filter(n => !n.isDismissed).slice(-5).reverse()
+    const kept = (await read($, notes)).filter(n => !n.isDismissed)
+    const open = kept.slice(-5).reverse()
 
     return (
       <Box flexDirection="column" width={width}>
@@ -297,20 +298,18 @@ export const register: Register = (on, options) => {
         )}
 
         <Box gap={1}>
-          <Text color={sending ? 'green' : undefined} dimColor={!sending}>
-            {sending ? `buttons SEND to run ${s.lock?.session ?? '?'}` : 'buttons COPY to clipboard'}
-          </Text>
+          <Text dimColor>buttons</Text>
           <Button
             key="send-toggle"
-            label={sending ? 'Switch to copy' : 'Switch to send'}
+            label={sending ? 'SEND ⇄' : 'COPY ⇄'}
             onPress={() => update($, canSend, v => !v)}
           />
         </Box>
 
         <Text> </Text>
-        {s.phases.map(p => (
-          <Text wrap="truncate" dimColor={p.isDone} color={p.n === s.current ? 'cyan' : undefined}>
-            {`${p.isDone ? '✓' : p.n === s.current ? '▸' : ' '} P${p.n.padEnd(2)} ${bar(p.done + p.skipped, p.total)} ${p.done}/${p.total}${p.skipped ? ` ~${p.skipped}` : ''}  ${p.title}`}
+        {phaseRows(s.phases, s.current).map(p => (
+          <Text wrap="truncate" dimColor={!p.isCurrent} color={p.isCurrent ? 'cyan' : undefined}>
+            {`${p.mark} ${p.label.padEnd(5)} ${bar(p.done + p.skipped, p.total)} ${p.done}/${p.total}${p.skipped ? ` ~${p.skipped}` : ''}  ${p.title}`}
           </Text>
         ))}
 
@@ -320,6 +319,12 @@ export const register: Register = (on, options) => {
         {s.deferred.map(d => (
           <Box flexDirection="column" marginBottom={1}>
             <Text wrap="wrap" dimColor={!!sentRow(d.id)}>{`#${d.id} [${d.item}] ${d.what}`}</Text>
+            {d.fallback && <Text wrap="truncate" dimColor>{`default: ${d.fallback}`}</Text>}
+            {notesForRow(d.id, kept).map(n => (
+              <Text wrap="truncate" color="magenta" dimColor={!!n.sentAt}>
+                {`↳ overseer: ${n.toRun || n.text}${n.sentAt ? ` (sent ${clockTime(n.sentAt)})` : ''}`}
+              </Text>
+            ))}
             <Box gap={1}>
               {sentRow(d.id) ? (
                 <Text color="green">{`✓ sent ${clockTime(sentRow(d.id))}`}</Text>
@@ -350,12 +355,12 @@ export const register: Register = (on, options) => {
         <Box gap={1}>
           <Text bold color="magenta">OVERSEER</Text>
           <Text dimColor>{`${ov.status}${ov.lastAt ? ` · ${ago(Math.round(ov.lastAt / 1000), s.now)} ago` : ''}`}</Text>
-          <Text dimColor>{`· ${ov.calls ?? 0} calls · ${compact(ov.tokensIn ?? 0)} in · ${compact(ov.tokensOut ?? 0)} out`}</Text>
+          <Text dimColor>{`· ${ov.calls ?? 0} call${ov.calls === 1 ? '' : 's'} · ${compact(ov.tokensIn ?? 0)} in · ${compact(ov.tokensOut ?? 0)} out`}</Text>
           <Button key="ask-overseer" label="Ask now" onPress={() => oversee($, true)} />
         </Box>
         {open.length === 0 && <Text dimColor>no open notes</Text>}
-        {open.map(n => (
-          <Box flexDirection="column" marginBottom={1}>
+        {open.map((n, i) => (
+          <Box flexDirection="column" marginBottom={i < open.length - 1 ? 1 : 0}>
             <Text wrap="wrap" dimColor={!!n.sentAt} color={n.sentAt ? undefined : n.kind === 'concern' ? 'red' : n.kind === 'suggest' ? 'cyan' : undefined}>
               {`[${n.kind}] ${n.text}`}
             </Text>

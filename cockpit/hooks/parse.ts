@@ -71,11 +71,15 @@ export function parseGateTail(log: string): CockpitGate | null {
   }
 }
 
+// A closing note, "Resolved 2026-10-03: …", "Resolved: …" or "Closed 2026-10-03: …", not
+// prose like "until this is resolved".
+const CLOSED = /\b(Resolved|Closed)(:| \d{4}-\d{2}-\d{2})/
+
 export function parseDeferred(md: string): CockpitDeferred[] {
   const open: CockpitDeferred[] = []
   for (const line of md.split('\n')) {
     if (!/^\| \d+ \|/.test(line)) continue
-    if (/resolved/i.test(line)) continue
+    if (CLOSED.test(line)) continue
     const cells = line.replace(/^\|\s*/, '').replace(/\s*\|\s*$/, '').split(/\s+\|\s+/)
     const what = plain(cells[3] ?? '')
     open.push({
@@ -252,4 +256,42 @@ export function compact(n: number) {
 export function clockTime(ms: number) {
   const d = new Date(ms)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+// Phase list for the pane: done phases before the current one and the phases after
+// it each fold into one row when there are two or more.
+export type PhaseRow = { label: string; title: string; done: number; skipped: number; total: number; mark: string; isCurrent: boolean }
+
+export function phaseRows(phases: CockpitPhase[], current: string): PhaseRow[] {
+  const i = phases.findIndex(p => p.n === current)
+  if (i < 0) return phases.map(p => row([p], p.isDone ? '✓' : ' ', false, p.title))
+  const before = phases.slice(0, i)
+  const after = phases.slice(i + 1)
+  const fold = (list: CockpitPhase[], mark: string, title: string) =>
+    list.length > 1 ? [row(list, mark, false, title)] : list.map(p => row([p], p.isDone ? '✓' : mark, false, p.title))
+  return [
+    ...fold(before, '✓', 'done'),
+    row([phases[i]!], '▸', true, phases[i]!.title),
+    ...fold(after, ' ', 'to go'),
+  ]
+}
+
+function row(list: CockpitPhase[], mark: string, isCurrent: boolean, title: string): PhaseRow {
+  const first = list[0]!
+  const last = list[list.length - 1]!
+  return {
+    label: list.length > 1 ? `P${first.n}–${last.n}` : `P${first.n}`,
+    title,
+    done: list.reduce((a, p) => a + p.done, 0),
+    skipped: list.reduce((a, p) => a + p.skipped, 0),
+    total: list.reduce((a, p) => a + p.total, 0),
+    mark,
+    isCurrent,
+  }
+}
+
+// Overseer notes that name a DEFERRED row as #id.
+export function notesForRow<T extends { text: string; toRun: string }>(id: string, notes: T[]) {
+  const ref = new RegExp(`#${id}(?!\\d)`)
+  return notes.filter(n => ref.test(n.text) || ref.test(n.toRun))
 }
