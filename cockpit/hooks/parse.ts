@@ -85,6 +85,7 @@ export function parseDeferred(md: string): CockpitDeferred[] {
     const what = plain(cells[3] ?? '')
     open.push({
       id: cells[0] ?? '',
+      date: cells[1] ?? '',
       item: cells[2] ?? '',
       what: what.length > 140 ? `${what.slice(0, 137)}...` : what,
       whatFull: what,
@@ -295,4 +296,38 @@ function row(list: CockpitPhase[], mark: string, isCurrent: boolean, title: stri
 export function notesForRow<T extends { text: string; toRun: string }>(id: string, notes: T[]) {
   const ref = new RegExp(`#${id}(?!\\d)`)
   return notes.filter(n => ref.test(n.text) || ref.test(n.toRun))
+}
+
+// Open rows in groups of the same item, in the order the items first appear.
+export function groupByItem(rows: CockpitDeferred[]) {
+  const groups: { item: string; rows: CockpitDeferred[] }[] = []
+  for (const r of rows) {
+    const g = groups.find(x => x.item === r.item)
+    if (g) g.rows.push(r)
+    else groups.push({ item: r.item, rows: [r] })
+  }
+  return groups
+}
+
+// How long a row has been open, from its Date cell (a day, local time).
+export function daysOpen(date: string, nowMs: number) {
+  const m = date.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return ''
+  const now = new Date(nowMs)
+  const days = Math.round(
+    (new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime()) / 86_400_000,
+  )
+  return days <= 0 ? 'today' : `${days}d`
+}
+
+// The overseer's running totals, kept in logs/overseer-usage.json across sessions.
+export type OverseerUsage = { calls: number; tokensIn: number; tokensOut: number }
+
+export function readUsage(text: string): OverseerUsage {
+  try {
+    const u = JSON.parse(text)
+    return { calls: Number(u.calls) || 0, tokensIn: Number(u.tokensIn) || 0, tokensOut: Number(u.tokensOut) || 0 }
+  } catch {
+    return { calls: 0, tokensIn: 0, tokensOut: 0 }
+  }
 }

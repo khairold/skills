@@ -16,12 +16,14 @@ Needs Claude Code 2.1.287 or newer (mods).
 ## What you can do
 
 - **Accept default** on a DEFERRED row: tells the orchestrator you accept the default it chose.
+  Rows of the same item are grouped; **Accept all defaults** sends one message for the group.
 - **Discuss**: fills this session's prompt with the full row (or note) so Claude here can talk it
   through with you.
 - **Overseer** (on once you open `/cockpit`, or `/overseer` to ask now): a model different from
   the workers reads the plan, the log and the open rows when something changes (a verdict, a
   DEFERRED row, a red gate; at most every 3 minutes) and posts up to three notes. **Send to run**
-  forwards a note's suggestion; **Dismiss** hides it. Notes are also kept in `.plan/logs/overseer.md`.
+  forwards a note's suggestion; **Dismiss** hides it. Notes are also kept in `.plan/logs/overseer.md`, its call and token totals in
+  `.plan/logs/overseer-usage.json`.
 - **Copy or send**: the header toggle chooses whether the buttons copy the prompt to the
   clipboard or send it straight to the run session. Every message says it came from the human and
   that the orchestrator decides when to act on it.
@@ -32,7 +34,8 @@ Needs Claude Code 2.1.287 or newer (mods).
 - The session named in `.plan/logs/run.lock` (the run itself) shows the band only.
 - Any other session in the repo shows the band; the pane and the overseer start only after
   `/cockpit` there. Nothing calls a model until you ask.
-- It reads `.plan/` and writes only `.plan/logs/overseer.md`, which the run never reads.
+- It reads `.plan/` and writes only `.plan/logs/overseer.md` and `.plan/logs/overseer-usage.json`,
+  which the run never reads.
 
 ## Settings
 

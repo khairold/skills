@@ -1,9 +1,9 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { CockpitNote, CockpitSnap } from '../types'
+import type { CockpitDeferred, CockpitNote, CockpitSnap } from '../types'
 import {
-  acceptPrompt, ago, clockTime, compact, notesForRow, phaseRows, usageTotals, discussPrompt, envelope, matchSession, projectSlug, forwardPrompt, OVERSEER_SYSTEM, overseerMarker, overseerPrompt,
+  acceptPrompt, ago, clockTime, compact, daysOpen, groupByItem, notesForRow, readUsage, phaseRows, usageTotals, discussPrompt, envelope, matchSession, projectSlug, forwardPrompt, OVERSEER_SYSTEM, overseerMarker, overseerPrompt,
   parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section,
 } from './parse'
 
@@ -26,6 +26,7 @@ const overseer = atom({ plugin: 'khairold', key: 'overseer' } as const, {
 // row or a red gate, never more often than MIN_GAP_MS.
 const MIN_GAP_MS = 3 * 60_000
 const LOG_TAIL_LINES = 60
+const USAGE_FILE = 'logs/overseer-usage.json'
 
 const FILES = ['PLAN.md', 'DEFERRED.md', 'SUPERVISOR-LOG.md', 'gate.log', 'logs/run.lock']
 
@@ -88,13 +89,17 @@ async function oversee($: EngineInterface, isForced: boolean) {
     })
     const at = await $.clock.now()
     const used = usageTotals(r.usage)
-    const count = (o: typeof state) => ({
-      calls: (o.calls ?? 0) + 1,
-      tokensIn: (o.tokensIn ?? 0) + used.tokensIn,
-      tokensOut: (o.tokensOut ?? 0) + used.tokensOut,
-    })
+    // Totals live in a file so they survive restarts and add up across cockpit sessions.
+    const before = readUsage(await $.fs.read(`${root}/${USAGE_FILE}`).then(t => String(t)).catch(() => ''))
+    const totals = {
+      calls: before.calls + 1,
+      tokensIn: before.tokensIn + used.tokensIn,
+      tokensOut: before.tokensOut + used.tokensOut,
+    }
+    await $.fs.write(`${root}/${USAGE_FILE}`, `${JSON.stringify(totals)}\n`).catch(() => {})
+    const count = () => totals
     if (!r.isAnswered) {
-      await update($, overseer, o => ({ ...o, ...count(o), status: `error: ${r.reason}`, lastAt: at }))
+      await update($, overseer, o => ({ ...o, ...count(), status: `error: ${r.reason}`, lastAt: at }))
       return
     }
     marker = m
@@ -109,7 +114,7 @@ async function oversee($: EngineInterface, isForced: boolean) {
       const prev = await $.fs.read(`${root}/logs/overseer.md`).then(t => String(t)).catch(() => '# Overseer notes\n')
       await $.fs.write(`${root}/logs/overseer.md`, `${prev.trimEnd()}\n${lines.join('\n')}\n`)
     }
-    await update($, overseer, o => ({ ...o, ...count(o), status: fresh.length ? 'idle' : 'idle (nothing to say)', lastAt: at }))
+    await update($, overseer, o => ({ ...o, ...count(), status: fresh.length ? 'idle' : 'idle (nothing to say)', lastAt: at }))
   } catch (err) {
     await update($, overseer, o => ({ ...o, status: `error: ${String(err).slice(0, 80)}` }))
   } finally {
@@ -202,6 +207,8 @@ export const register: Register = (on, options) => {
         name: 'overseer',
         description: 'Ask the dot-plan overseer for its view now',
       })
+      const usage = readUsage(await $.fs.read(`${root}/${USAGE_FILE}`).then(t => String(t)).catch(() => ''))
+      await update($, overseer, o => ({ ...o, ...usage }))
       await refresh($)
       $.clock.every(TICK_MS, () => void refresh($))
     }
@@ -284,6 +291,15 @@ export const register: Register = (on, options) => {
     const sentRow = (id: string) => sent.find(x => x.id === id)?.at ?? 0
     const kept = (await read($, notes)).filter(n => !n.isDismissed)
     const open = kept.slice(-5).reverse()
+    // One message accepting the defaults of these rows; marks them sent when delivered.
+    const accept = async (rows: CockpitDeferred[], surface: Parameters<EngineInterface['ui']['copy']>[0]['surface'], what: string) => {
+      const now = await $.clock.now()
+      const date = new Date(now).toISOString().slice(0, 10)
+      if (await deliver($, rows.map(d => acceptPrompt(d, date)).join('\n\n'), surface, what)) {
+        const ids = rows.map(d => d.id)
+        await update($, sentRows, list => [...list.filter(x => !ids.includes(x.id)), ...ids.map(id => ({ id, at: now }))])
+      }
+    }
     const itemWidth = Math.max(0, ...s.feed.map(l => l.item.length))
 
     return (
@@ -326,41 +342,61 @@ export const register: Register = (on, options) => {
         <Text> </Text>
         <Text bold color="yellow">{`NEEDS YOU (${s.deferred.length})`}</Text>
         {s.deferred.length === 0 && <Text dimColor>nothing open</Text>}
-        {s.deferred.map(d => (
-          <Box flexDirection="column" marginBottom={1}>
-            <Text wrap="wrap" dimColor={!!sentRow(d.id)}>{`#${d.id} [${d.item}] ${d.what}`}</Text>
-            {d.fallback && <Text wrap="truncate" dimColor>{`default: ${d.fallback}`}</Text>}
-            {notesForRow(d.id, kept).map(n => (
-              <Text wrap="truncate" color="magenta" dimColor={!!n.sentAt}>
-                {`↳ overseer: ${n.toRun || n.text}${n.sentAt ? ` (sent ${clockTime(n.sentAt)})` : ''}`}
-              </Text>
-            ))}
-            <Box gap={1}>
-              {sentRow(d.id) ? (
-                <Text color="green">{`✓ sent ${clockTime(sentRow(d.id))}`}</Text>
-              ) : (
-                <Button
-                  key={`accept-${d.id}`}
-                  label="Accept default"
-                  onPress={async press => {
-                    const now = await $.clock.now()
-                    const date = new Date(now).toISOString().slice(0, 10)
-                    if (await deliver($, acceptPrompt(d, date), press.surface, `#${d.id}`)) {
-                      await update($, sentRows, list => [...list.filter(x => x.id !== d.id), { id: d.id, at: now }])
-                    }
-                  }}
-                />
+        {groupByItem(s.deferred).map(g => {
+          const unsent = g.rows.filter(d => !sentRow(d.id))
+          const isGroup = g.rows.length > 1
+
+          return (
+            <Box flexDirection="column">
+              {isGroup && (
+                <Box gap={1}>
+                  <Text bold>{`[${g.item}] ${g.rows.length} open`}</Text>
+                  {unsent.length > 1 && (
+                    <Button
+                      key={`accept-all-${g.item}`}
+                      label="Accept all defaults"
+                      onPress={press => accept(unsent, press.surface, `[${g.item}]`)}
+                    />
+                  )}
+                </Box>
               )}
-              <Button
-                key={`discuss-${d.id}`}
-                label="Discuss"
-                onPress={async () => {
-                  await $.prompt.fill({ text: discussPrompt(d), mode: 'replace' })
-                }}
-              />
+              {g.rows.map(d => (
+                <Box flexDirection="column" marginBottom={1}>
+                  <Text wrap="wrap" dimColor={!!sentRow(d.id)}>
+                    {`#${d.id} `}
+                    {!isGroup && `[${d.item}] `}
+                    <Text dimColor>{`${daysOpen(d.date, s.now)} · `}</Text>
+                    {d.what}
+                  </Text>
+                  {d.fallback && <Text wrap="truncate" dimColor>{`default: ${d.fallback}`}</Text>}
+                  {notesForRow(d.id, kept).map(n => (
+                    <Text wrap="truncate" color="magenta" dimColor={!!n.sentAt}>
+                      {`↳ overseer: ${n.toRun || n.text}${n.sentAt ? ` (sent ${clockTime(n.sentAt)})` : ''}`}
+                    </Text>
+                  ))}
+                  <Box gap={1}>
+                    {sentRow(d.id) ? (
+                      <Text color="green">{`✓ sent ${clockTime(sentRow(d.id))}`}</Text>
+                    ) : (
+                      <Button
+                        key={`accept-${d.id}`}
+                        label="Accept default"
+                        onPress={press => accept([d], press.surface, `#${d.id}`)}
+                      />
+                    )}
+                    <Button
+                      key={`discuss-${d.id}`}
+                      label="Discuss"
+                      onPress={async () => {
+                        await $.prompt.fill({ text: discussPrompt(d), mode: 'replace' })
+                      }}
+                    />
+                  </Box>
+                </Box>
+              ))}
             </Box>
-          </Box>
-        ))}
+          )
+        })}
 
         <Box gap={1}>
           <Text bold color="magenta">OVERSEER</Text>

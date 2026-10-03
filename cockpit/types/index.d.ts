@@ -9,6 +9,7 @@ export type CockpitPhase = {
 
 export type CockpitDeferred = {
   id: string
+  date: string
   item: string
   what: string
   whatFull: string

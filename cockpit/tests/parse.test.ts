@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { notesForRow, phaseRows, clockTime, compact, usageTotals, envelope, TIMING_NOTE, matchSession, projectSlug, acceptPrompt, ago, discussPrompt, overseerMarker, parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section } from '../hooks/parse'
+import { daysOpen, groupByItem, readUsage, notesForRow, phaseRows, clockTime, compact, usageTotals, envelope, TIMING_NOTE, matchSession, projectSlug, acceptPrompt, ago, discussPrompt, overseerMarker, parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section } from '../hooks/parse'
 
 const PLAN = `# Plan
 > **Current Phase:** Phase 3
@@ -52,6 +52,7 @@ test('deferred: open rows only, first sentence', async () => {
   expect(parseDeferred(md)).toEqual([
     {
       id: '6',
+      date: '2026-10-03',
       item: '2.3',
       what: 'cffi 2.1+ is MIT-0; not allowed',
       whatFull: 'cffi 2.1+ is MIT-0; not allowed',
@@ -60,6 +61,7 @@ test('deferred: open rows only, first sentence', async () => {
     },
     {
       id: '14',
+      date: '2026-10-03',
       item: '4.1',
       what: 'OCR cannot ship until this is resolved',
       whatFull: 'OCR cannot ship until this is resolved',
@@ -92,7 +94,7 @@ test('ago', async () => {
 })
 
 test('prompts carry the row', async () => {
-  const d = { id: '9', item: '3.x', what: 'w', whatFull: 'full what', fallback: 'flag off', reverse: 'set it up' }
+  const d = { id: '9', date: '2026-10-03', item: '3.x', what: 'w', whatFull: 'full what', fallback: 'flag off', reverse: 'set it up' }
   expect(acceptPrompt(d, '2026-10-03')).toContain('closes DEFERRED #9): accept the default chosen — "flag off"')
   expect(discussPrompt(d)).toContain('What: full what')
   expect(discussPrompt(d)).toContain('How to reverse: set it up')
@@ -148,4 +150,18 @@ test('notes linked to a DEFERRED row by #id', async () => {
   const notes = [{ text: 'close #10 now', toRun: '-' }, { text: 'x', toRun: 'see #1 and #100' }, { text: 'none', toRun: '' }]
   expect(notesForRow('10', notes)).toEqual([notes[0]])
   expect(notesForRow('1', notes)).toEqual([notes[1]])
+})
+
+test('rows group by item, age from the Date cell', async () => {
+  const r = (id: string, item: string) => ({ id, date: '2026-10-03', item, what: '', whatFull: '', fallback: '', reverse: '' })
+  expect(groupByItem([r('4', '1.x'), r('12', '3.4'), r('5', '1.x')]).map(g => [g.item, g.rows.map(x => x.id)]))
+    .toEqual([['1.x', ['4', '5']], ['3.4', ['12']]])
+  expect(daysOpen('2026-10-03', new Date(2026, 9, 3, 23, 0).getTime())).toBe('today')
+  expect(daysOpen('2026-10-01', new Date(2026, 9, 3, 1, 0).getTime())).toBe('2d')
+  expect(daysOpen('soon', 0)).toBe('')
+})
+
+test('overseer usage file', async () => {
+  expect(readUsage('{"calls":3,"tokensIn":900,"tokensOut":40}')).toEqual({ calls: 3, tokensIn: 900, tokensOut: 40 })
+  expect(readUsage('')).toEqual({ calls: 0, tokensIn: 0, tokensOut: 0 })
 })
