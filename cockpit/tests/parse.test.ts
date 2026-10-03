@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { compact, usageTotals, envelope, TIMING_NOTE, matchSession, projectSlug, acceptPrompt, ago, discussPrompt, overseerMarker, parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section } from '../hooks/parse'
+import { clockTime, compact, usageTotals, envelope, TIMING_NOTE, matchSession, projectSlug, acceptPrompt, ago, discussPrompt, overseerMarker, parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section } from '../hooks/parse'
 
 const PLAN = `# Plan
 > **Current Phase:** Phase 3
@@ -113,4 +113,8 @@ test('overseer usage counts every input token', async () => {
   expect(usageTotals({ input_tokens: 10, output_tokens: 2, cache_read_input_tokens: null })).toEqual({ tokensIn: 10, tokensOut: 2 })
   expect(usageTotals(undefined)).toEqual({ tokensIn: 0, tokensOut: 0 })
   expect([compact(950), compact(96_400), compact(1_250_000)]).toEqual(['950', '96k', '1.3M'])
+})
+
+test('clock time is HH:MM', async () => {
+  expect(clockTime(new Date(2026, 9, 3, 6, 5).getTime())).toBe('06:05')
 })

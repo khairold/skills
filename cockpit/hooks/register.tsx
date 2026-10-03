@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { CockpitNote, CockpitSnap } from '../types'
 import {
-  acceptPrompt, ago, compact, usageTotals, discussPrompt, envelope, matchSession, projectSlug, forwardPrompt, OVERSEER_SYSTEM, overseerMarker, overseerPrompt,
+  acceptPrompt, ago, clockTime, compact, usageTotals, discussPrompt, envelope, matchSession, projectSlug, forwardPrompt, OVERSEER_SYSTEM, overseerMarker, overseerPrompt,
   parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section,
 } from './parse'
 
@@ -12,6 +12,7 @@ const TICK_MS = 20_000
 const FEED_LINES = 8
 const snap = atom({ plugin: 'khairold', key: 'snap' } as const, null)
 const notes = atom({ plugin: 'khairold', key: 'notes' } as const, [])
+const sentRows = atom({ plugin: 'khairold', key: 'sentRows' } as const, [])
 const isActive = atom({ plugin: 'khairold', key: 'isActive' } as const, false)
 const canSend = atom({ plugin: 'khairold', key: 'canSend' } as const, false)
 const overseer = atom({ plugin: 'khairold', key: 'overseer' } as const, {
@@ -147,6 +148,7 @@ async function runSessionId($: EngineInterface, prefix: string) {
 }
 
 // Send to the run session when sending is on; otherwise, or when it fails, copy.
+// Resolves true only when the run session received it.
 async function deliver($: EngineInterface, text: string, surface: Parameters<EngineInterface['ui']['copy']>[0]['surface'], what: string) {
   if (await read($, canSend)) {
     const prefix = parsed?.lock?.session ?? ''
@@ -155,7 +157,7 @@ async function deliver($: EngineInterface, text: string, surface: Parameters<Eng
       const r = await $.session.send({ to: { sessionId: id }, text: envelope(text) })
       if (r.isDelivered) {
         $.ui.toast(`${what}: sent to the run session (${prefix})`)
-        return
+        return true
       }
       $.ui.toast(`${what}: send failed (${r.reason}); copied instead`)
     } else {
@@ -164,6 +166,7 @@ async function deliver($: EngineInterface, text: string, surface: Parameters<Eng
   }
   const c = await $.ui.copy({ text: envelope(text), surface })
   $.ui.toast(c.isCopied ? `${what}: copied, paste it into the run session` : `${what}: copy failed`)
+  return false
 }
 
 // The run's own session: it shows the band and nothing else.
@@ -268,6 +271,8 @@ export const register: Register = (on, options) => {
     const live = s.lock && s.now / 1000 - s.lock.beat < 3600
     const ov = await read($, overseer)
     const sending = await read($, canSend)
+    const sent = await read($, sentRows)
+    const sentRow = (id: string) => sent.find(x => x.id === id)?.at ?? 0
     const open = (await read($, notes)).filter(n => !n.isDismissed).slice(-5).reverse()
 
     return (
@@ -314,16 +319,23 @@ export const register: Register = (on, options) => {
         {s.deferred.length === 0 && <Text dimColor>nothing open</Text>}
         {s.deferred.map(d => (
           <Box flexDirection="column" marginBottom={1}>
-            <Text wrap="wrap">{`#${d.id} [${d.item}] ${d.what}`}</Text>
+            <Text wrap="wrap" dimColor={!!sentRow(d.id)}>{`#${d.id} [${d.item}] ${d.what}`}</Text>
             <Box gap={1}>
-              <Button
-                key={`accept-${d.id}`}
-                label={sending ? 'Accept default (send)' : 'Accept default'}
-                onPress={async press => {
-                  const date = new Date(await $.clock.now()).toISOString().slice(0, 10)
-                  await deliver($, acceptPrompt(d, date), press.surface, `#${d.id}`)
-                }}
-              />
+              {sentRow(d.id) ? (
+                <Text color="green">{`✓ sent ${clockTime(sentRow(d.id))}`}</Text>
+              ) : (
+                <Button
+                  key={`accept-${d.id}`}
+                  label={sending ? 'Accept default (send)' : 'Accept default'}
+                  onPress={async press => {
+                    const now = await $.clock.now()
+                    const date = new Date(now).toISOString().slice(0, 10)
+                    if (await deliver($, acceptPrompt(d, date), press.surface, `#${d.id}`)) {
+                      await update($, sentRows, list => [...list.filter(x => x.id !== d.id), { id: d.id, at: now }])
+                    }
+                  }}
+                />
+              )}
               <Button
                 key={`discuss-${d.id}`}
                 label="Discuss"
@@ -344,18 +356,25 @@ export const register: Register = (on, options) => {
         {open.length === 0 && <Text dimColor>no open notes</Text>}
         {open.map(n => (
           <Box flexDirection="column" marginBottom={1}>
-            <Text wrap="wrap" color={n.kind === 'concern' ? 'red' : n.kind === 'suggest' ? 'cyan' : undefined}>
+            <Text wrap="wrap" dimColor={!!n.sentAt} color={n.sentAt ? undefined : n.kind === 'concern' ? 'red' : n.kind === 'suggest' ? 'cyan' : undefined}>
               {`[${n.kind}] ${n.text}`}
             </Text>
             {n.toRun && <Text wrap="wrap" dimColor>{`→ run: ${n.toRun}`}</Text>}
             <Box gap={1}>
-              {n.toRun && (
+              {n.sentAt ? (
+                <Text color="green">{`✓ sent ${clockTime(n.sentAt)}`}</Text>
+              ) : n.toRun ? (
                 <Button
                   key={`fwd-${n.id}`}
                   label={sending ? 'Send to run' : 'Copy for run'}
-                  onPress={press => deliver($, forwardPrompt(n.toRun), press.surface, 'note')}
+                  onPress={async press => {
+                    if (await deliver($, forwardPrompt(n.toRun), press.surface, 'note')) {
+                      const at = await $.clock.now()
+                      await update($, notes, list => list.map(x => (x.id === n.id ? { ...x, sentAt: at } : x)))
+                    }
+                  }}
                 />
-              )}
+              ) : null}
               <Button
                 key={`talk-${n.id}`}
                 label="Discuss"

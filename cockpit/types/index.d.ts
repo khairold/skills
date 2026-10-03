@@ -54,6 +54,7 @@ export type CockpitNote = {
   text: string
   toRun: string
   isDismissed: boolean
+  sentAt?: number
 }
 
 export type CockpitOverseer = {
@@ -72,6 +73,7 @@ declare module 'claude-code' {
       overseer: CockpitOverseer
       canSend: boolean
       isActive: boolean
+      sentRows: { id: string; at: number }[]
     }
   }
 }
