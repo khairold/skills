@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { CockpitDeferred, CockpitNote, CockpitSnap } from '../types'
 import {
-  acceptPrompt, ago, clockTime, compact, daysOpen, groupByItem, notesForRow, readUsage, phaseRows, usageTotals, discussPrompt, envelope, matchSession, projectSlug, forwardPrompt, OVERSEER_SYSTEM, overseerMarker, overseerPrompt,
+  acceptPrompt, ago, clip, clockTime, itemPace, span, compact, daysOpen, groupByItem, notesForRow, readUsage, phaseRows, usageTotals, discussPrompt, envelope, matchSession, projectSlug, forwardPrompt, OVERSEER_SYSTEM, overseerMarker, overseerPrompt,
   parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section,
 } from './parse'
 
@@ -12,12 +12,16 @@ const TICK_MS = 20_000
 const FEED_LINES = 8
 // The feed's item column; longer items ("3.2-finish") end in "…".
 const FEED_ITEM_MAX = 6
+// When the heartbeat and a worker look slow (yellow), before the hour that reads as dead.
+const SLOW_BEAT_SEC = 10 * 60
+const SLOW_WORKER_SEC = 45 * 60
 // How long the band flags a new DEFERRED row.
 const NEW_ROW_MS = 30 * 60_000
 const FEED_COLOR: Record<string, string> = { Verdict: 'green', Reviewer: 'yellow', Fix: 'cyan', Human: 'magenta', Stopped: 'red' }
 const snap = atom({ plugin: 'khairold', key: 'snap' } as const, null)
 const notes = atom({ plugin: 'khairold', key: 'notes' } as const, [])
 const sentRows = atom({ plugin: 'khairold', key: 'sentRows' } as const, [])
+const expanded = atom({ plugin: 'khairold', key: 'expanded' } as const, [])
 const isActive = atom({ plugin: 'khairold', key: 'isActive' } as const, false)
 const canSend = atom({ plugin: 'khairold', key: 'canSend' } as const, false)
 const overseer = atom({ plugin: 'khairold', key: 'overseer' } as const, {
@@ -141,12 +145,13 @@ async function load($: EngineInterface): Promise<Omit<CockpitSnap, 'now' | 'newA
       deferred: parseDeferred(deferred),
       feed: f.feed,
       watch: f.watch,
+      itemPace: itemPace(sup),
       error: '',
     }
   } catch (err) {
     return {
       root, current: '', phases: [], next: '', lock: null, gate: null,
-      deferred: [], feed: [], watch: '', error: String(err),
+      deferred: [], feed: [], watch: '', itemPace: 0, error: String(err),
     }
   }
 }
@@ -250,6 +255,8 @@ export const register: Register = (on, options) => {
     const ph = s.phases.find(p => p.n === s.current)
     const live = s.lock && s.now / 1000 - s.lock.beat < 3600
     const working = s.lock && s.lock.worker !== '-'
+    const beatSec = s.lock ? s.now / 1000 - s.lock.beat : 0
+    const isSlowWorker = !!working && s.now / 1000 - s.lock!.workerSince > SLOW_WORKER_SEC
 
     return (
       <Box flexDirection="column">
@@ -258,7 +265,7 @@ export const register: Register = (on, options) => {
           <Text color="cyan">◆ </Text>
           <Text bold>{`P${s.current}`}</Text>
           {ph && <Text dimColor>{` ${ph.done + ph.skipped}/${ph.total}`}</Text>}
-          <Text>{working ? `  ▶ ${s.lock!.worker} ${ago(s.lock!.workerSince, s.now)}` : `  next ${s.next.split(' ')[0]}`}</Text>
+          <Text color={isSlowWorker ? 'yellow' : undefined}>{working ? `  ▶ ${s.lock!.worker} ${ago(s.lock!.workerSince, s.now)}` : `  next ${s.next.split(' ')[0]}`}</Text>
           {s.gate && (
             <Text color={s.gate.result === 'PASS' ? 'green' : 'red'}>{`  gate ${s.gate.result} ${ago(s.gate.at, s.now)}`}</Text>
           )}
@@ -268,6 +275,7 @@ export const register: Register = (on, options) => {
             <Text color="yellow">{`  ⚑ ${s.deferred.length} open`}</Text>
           ))}
           {!live && <Text color="red">  run not live</Text>}
+          {live && beatSec > SLOW_BEAT_SEC && <Text color="yellow">{`  beat ${ago(s.lock!.beat, s.now)}`}</Text>}
           {isRunSession() ? <Text dimColor>  (run session)</Text> : !(await read($, isActive)) && <Text dimColor>  /cockpit</Text>}
         </Box>
       </Box>
@@ -287,7 +295,14 @@ export const register: Register = (on, options) => {
     const all = s.phases.reduce((a, p) => a + p.total, 0)
     const finished = s.phases.reduce((a, p) => a + p.done + p.skipped, 0)
     const live = s.lock && s.now / 1000 - s.lock.beat < 3600
+    const isSlowBeat = !!s.lock && s.now / 1000 - s.lock.beat > SLOW_BEAT_SEC
+    const isSlowWorker = !!s.lock && s.lock.worker !== '-' && s.now / 1000 - s.lock.workerSince > SLOW_WORKER_SEC
     const ov = await read($, overseer)
+    const shown = await read($, expanded)
+    const isOpen = (key: string) => shown.includes(key)
+    const toggle = (key: string) => update($, expanded, list => (list.includes(key) ? list.filter(k => k !== key) : [...list, key]))
+    // Collapsed text runs about two lines of the pane.
+    const twoLines = width * 2 - 12
     const sending = await read($, canSend)
     const sent = await read($, sentRows)
     const sentRow = (id: string) => sent.find(x => x.id === id)?.at ?? 0
@@ -310,13 +325,13 @@ export const register: Register = (on, options) => {
         {s.error && <Text color="red" wrap="truncate">{s.error}</Text>}
         <Box>
           <Text bold>{`Phase ${s.current}`}</Text>
-          <Text dimColor>{`  ${finished}/${all} items`}</Text>
-          <Text color={live ? 'green' : 'red'}>
+          <Text dimColor>{`  ${finished}/${all} items${s.itemPace && all > finished ? ` · ~${span(s.itemPace * (all - finished))} left` : ''}`}</Text>
+          <Text color={live ? (isSlowBeat ? 'yellow' : 'green') : 'red'}>
             {live ? `  live · beat ${ago(s.lock!.beat, s.now)}` : '  no live run'}
           </Text>
         </Box>
         {s.lock && s.lock.worker !== '-' ? (
-          <Text wrap="truncate">{`▶ ${s.lock.worker} · worker ${ago(s.lock.workerSince, s.now)}`}</Text>
+          <Text wrap="truncate" color={isSlowWorker ? 'yellow' : undefined}>{`▶ ${s.lock.worker} · worker ${ago(s.lock.workerSince, s.now)}`}</Text>
         ) : (
           <Text wrap="truncate" dimColor>{`next: ${s.next}`}</Text>
         )}
@@ -363,15 +378,20 @@ export const register: Register = (on, options) => {
                   )}
                 </Box>
               )}
-              {g.rows.map(d => (
+              {g.rows.map(d => {
+                const key = `row-${d.id}`
+                const what = isOpen(key) ? { text: d.whatFull, isCut: false } : clip(d.whatFull, twoLines)
+                const canMore = clip(d.whatFull, twoLines).isCut || d.fallback.length > width - 9
+
+                return (
                 <Box flexDirection="column" marginBottom={1}>
                   <Text wrap="wrap" dimColor={!!sentRow(d.id)}>
                     {`#${d.id} `}
                     {!isGroup && `[${d.item}] `}
                     <Text dimColor>{`${daysOpen(d.date, s.now)} · `}</Text>
-                    {d.what}
+                    {what.text}
                   </Text>
-                  {d.fallback && <Text wrap="truncate" dimColor>{`default: ${d.fallback}`}</Text>}
+                  {d.fallback && <Text wrap={isOpen(key) ? 'wrap' : 'truncate'} dimColor>{`default: ${d.fallback}`}</Text>}
                   {notesForRow(d.id, kept).map(n => (
                     <Text wrap="truncate" color="magenta" dimColor={!!n.sentAt}>
                       {`↳ overseer: ${n.toRun || n.text}${n.sentAt ? ` (sent ${clockTime(n.sentAt)})` : ''}`}
@@ -394,9 +414,11 @@ export const register: Register = (on, options) => {
                         await $.prompt.fill({ text: discussPrompt(d), mode: 'replace' })
                       }}
                     />
+                    {canMore && <Button key={`more-${d.id}`} label={isOpen(key) ? 'less' : 'more'} onPress={() => toggle(key)} />}
                   </Box>
                 </Box>
-              ))}
+                )
+              })}
             </Box>
           )
         })}
@@ -413,12 +435,32 @@ export const register: Register = (on, options) => {
           <Button key="ask-overseer" label="Ask now" onPress={() => oversee($, true)} />
         </Box>
         {open.length === 0 && <Text dimColor>no open notes</Text>}
-        {open.map((n, i) => (
+        {open.map((n, i) => {
+          const key = `note-${n.id}`
+          const linked = s.deferred.filter(d => notesForRow(d.id, [n]).length > 0).map(d => `#${d.id}`)
+          const isFull = isOpen(key)
+          const text = isFull ? { text: n.text, isCut: false } : clip(n.text, twoLines)
+          const toRun = isFull ? { text: n.toRun, isCut: false } : clip(n.toRun, twoLines)
+          const canMore = !linked.length && (clip(n.text, twoLines).isCut || clip(n.toRun, twoLines).isCut)
+          // Older than the overseer's latest call: still open, but not its current view.
+          const isOld = !!ov.lastAt && n.at < ov.lastAt
+          const color = n.sentAt || isOld ? undefined : n.kind === 'concern' ? 'red' : n.kind === 'suggest' ? 'cyan' : undefined
+
+          return (
           <Box flexDirection="column" marginBottom={i < open.length - 1 ? 1 : 0}>
-            <Text wrap="wrap" dimColor={!!n.sentAt} color={n.sentAt ? undefined : n.kind === 'concern' ? 'red' : n.kind === 'suggest' ? 'cyan' : undefined}>
-              {`[${n.kind}] ${n.text}`}
-            </Text>
-            {n.toRun && <Text wrap="wrap" dimColor>{`→ run: ${n.toRun}`}</Text>}
+            {linked.length ? (
+              <Text wrap="truncate" dimColor color={color}>
+                {`[${n.kind}] ${ago(Math.round(n.at / 1000), s.now)} ago · about ${linked.join(', ')}, shown above`}
+              </Text>
+            ) : (
+              <Box flexDirection="column">
+                <Text wrap="wrap" dimColor={!!n.sentAt || isOld} color={color}>
+                  <Text dimColor>{`${ago(Math.round(n.at / 1000), s.now)} ago `}</Text>
+                  {`[${n.kind}] ${text.text}`}
+                </Text>
+                {n.toRun && <Text wrap="wrap" dimColor>{`→ run: ${toRun.text}`}</Text>}
+              </Box>
+            )}
             <Box gap={1}>
               {n.sentAt ? (
                 <Text color="green">{`✓ sent ${clockTime(n.sentAt)}`}</Text>
@@ -449,9 +491,11 @@ export const register: Register = (on, options) => {
                 label="Dismiss"
                 onPress={() => update($, notes, list => list.map(x => (x.id === n.id ? { ...x, isDismissed: true } : x)))}
               />
+              {canMore && <Button key={`more-${n.id}`} label={isFull ? 'less' : 'more'} onPress={() => toggle(key)} />}
             </Box>
           </Box>
-        ))}
+          )
+        })}
 
         {s.watch && (
           <Box flexDirection="column">

@@ -331,3 +331,25 @@ export function readUsage(text: string): OverseerUsage {
     return { calls: 0, tokensIn: 0, tokensOut: 0 }
   }
 }
+
+// Cut text to n characters, ending in "…"; isCut says whether anything was lost.
+export function clip(text: string, n: number) {
+  return text.length > n ? { text: `${text.slice(0, Math.max(1, n - 1))}…`, isCut: true } : { text, isCut: false }
+}
+
+// Typical seconds per item: the median gap between the last commits in the log,
+// so a pause overnight does not skew it. 0 until there are two commits.
+export function itemPace(log: string, window = 10) {
+  const at = log.split('\n').map(l => l.match(/^EV (\d+) \S+ commit /)?.[1]).filter(Boolean).map(Number)
+  const gaps = at.slice(1).map((t, i) => t - at[i]!).slice(-window).sort((a, b) => a - b)
+  if (!gaps.length) return 0
+  const mid = Math.floor(gaps.length / 2)
+  return gaps.length % 2 ? gaps[mid]! : Math.round((gaps[mid - 1]! + gaps[mid]!) / 2)
+}
+
+// A rough duration: "40m", "6h", "2d".
+export function span(sec: number) {
+  if (sec < 3600) return `${Math.max(1, Math.round(sec / 60))}m`
+  if (sec < 48 * 3600) return `${Math.round(sec / 3600)}h`
+  return `${Math.round(sec / 86400)}d`
+}

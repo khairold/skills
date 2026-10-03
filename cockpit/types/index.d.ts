@@ -52,6 +52,7 @@ export type CockpitSnap = {
   deferred: CockpitDeferred[]
   feed: CockpitFeedLine[]
   watch: string
+  itemPace: number
   error: string
   newAt: number
 }
@@ -83,6 +84,7 @@ declare module 'claude-code' {
       canSend: boolean
       isActive: boolean
       sentRows: { id: string; at: number }[]
+      expanded: string[]
     }
   }
 }

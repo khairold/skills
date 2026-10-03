@@ -11,6 +11,9 @@ Needs Claude Code 2.1.287 or newer (mods).
   a worker is on and for how long, the last gate result, how many DEFERRED rows are open.
 - **Pane** (`/cockpit`): phase bars, the current worker, the last gate, every open DEFERRED row,
   the overseer's notes, the run's Watch line and a feed of the supervisor log.
+  The header estimates time left from the median gap between recent commits. The heartbeat
+  turns yellow after 10 minutes and a worker after 45; long rows and notes fold to two lines
+  behind **more**.
 - A toast when a new DEFERRED row appears.
 
 ## What you can do

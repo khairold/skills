@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { daysOpen, groupByItem, readUsage, notesForRow, phaseRows, clockTime, compact, usageTotals, envelope, TIMING_NOTE, matchSession, projectSlug, acceptPrompt, ago, discussPrompt, overseerMarker, parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section } from '../hooks/parse'
+import { clip, itemPace, span, daysOpen, groupByItem, readUsage, notesForRow, phaseRows, clockTime, compact, usageTotals, envelope, TIMING_NOTE, matchSession, projectSlug, acceptPrompt, ago, discussPrompt, overseerMarker, parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section } from '../hooks/parse'
 
 const PLAN = `# Plan
 > **Current Phase:** Phase 3
@@ -164,4 +164,19 @@ test('rows group by item, age from the Date cell', async () => {
 test('overseer usage file', async () => {
   expect(readUsage('{"calls":3,"tokensIn":900,"tokensOut":40}')).toEqual({ calls: 3, tokensIn: 900, tokensOut: 40 })
   expect(readUsage('')).toEqual({ calls: 0, tokensIn: 0, tokensOut: 0 })
+})
+
+test('clip, pace and span', async () => {
+  expect(clip('abcdef', 4)).toEqual({ text: 'abc…', isCut: true })
+  expect(clip('abc', 4)).toEqual({ text: 'abc', isCut: false })
+  const log = [
+    'EV 1000 2026-10-03T17:00:00+08:00 commit 1.1 5',
+    'EV 1500 2026-10-03T17:08:20+08:00 worker 1.2 400',
+    'EV 1600 2026-10-03T17:10:00+08:00 commit 1.2 5',
+    'EV 2400 2026-10-03T17:23:20+08:00 commit 1.3 5',
+    'EV 90000 2026-10-04T17:00:00+08:00 commit 1.4 5',
+  ].join('\n')
+  expect(itemPace(log)).toBe(800)
+  expect(itemPace('EV 1 x commit 1.1 1')).toBe(0)
+  expect([span(30), span(2400), span(6 * 3600), span(3 * 86400)]).toEqual(['1m', '40m', '6h', '3d'])
 })
