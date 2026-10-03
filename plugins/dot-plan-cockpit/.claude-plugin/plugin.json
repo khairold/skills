@@ -1,0 +1,17 @@
+{
+  "name": "dot-plan-cockpit",
+  "version": "0.2.0",
+  "description": "Read-only cockpit over a dot-plan run: progress, current item, gate, open DEFERRED rows, feed",
+  "author": {
+    "name": "Khairold Safri"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "overseerModel": {
+      "type": "string",
+      "title": "Overseer model",
+      "description": "Model alias or id the overseer uses; pick one different from the run's workers.",
+      "default": "fable"
+    }
+  }
+}
