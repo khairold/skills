@@ -228,3 +228,23 @@ export const TIMING_NOTE =
 export function envelope(text: string) {
   return `[dot-plan cockpit · sent by the human]\n${text}\n\n${TIMING_NOTE}`
 }
+
+// Input counts cache reads and writes too: all of it is what one call sent.
+export function usageTotals(u: {
+  input_tokens?: number
+  output_tokens?: number
+  cache_read_input_tokens?: number | null
+  cache_creation_input_tokens?: number | null
+} | undefined) {
+  if (!u) return { tokensIn: 0, tokensOut: 0 }
+  return {
+    tokensIn: (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0),
+    tokensOut: u.output_tokens ?? 0,
+  }
+}
+
+export function compact(n: number) {
+  if (n < 1000) return String(n)
+  if (n < 1_000_000) return `${Math.round(n / 1000)}k`
+  return `${(n / 1_000_000).toFixed(1)}M`
+}

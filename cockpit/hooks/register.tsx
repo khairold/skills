@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { CockpitNote, CockpitSnap } from '../types'
 import {
-  acceptPrompt, ago, discussPrompt, envelope, matchSession, projectSlug, forwardPrompt, OVERSEER_SYSTEM, overseerMarker, overseerPrompt,
+  acceptPrompt, ago, compact, usageTotals, discussPrompt, envelope, matchSession, projectSlug, forwardPrompt, OVERSEER_SYSTEM, overseerMarker, overseerPrompt,
   parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section,
 } from './parse'
 
@@ -14,7 +14,9 @@ const snap = atom({ plugin: 'khairold', key: 'snap' } as const, null)
 const notes = atom({ plugin: 'khairold', key: 'notes' } as const, [])
 const isActive = atom({ plugin: 'khairold', key: 'isActive' } as const, false)
 const canSend = atom({ plugin: 'khairold', key: 'canSend' } as const, false)
-const overseer = atom({ plugin: 'khairold', key: 'overseer' } as const, { status: 'idle', lastAt: 0 })
+const overseer = atom({ plugin: 'khairold', key: 'overseer' } as const, {
+  status: 'idle', lastAt: 0, calls: 0, tokensIn: 0, tokensOut: 0,
+})
 
 // The overseer: a different model from the workers, woken by a verdict, a DEFERRED
 // row or a red gate, never more often than MIN_GAP_MS.
@@ -79,8 +81,14 @@ async function oversee($: EngineInterface, isForced: boolean) {
       model: overseerModel, system: OVERSEER_SYSTEM, prompt, maxTokens: 1024, timeoutMs: 120_000,
     })
     const at = await $.clock.now()
+    const used = usageTotals(r.usage)
+    const count = (o: typeof state) => ({
+      calls: (o.calls ?? 0) + 1,
+      tokensIn: (o.tokensIn ?? 0) + used.tokensIn,
+      tokensOut: (o.tokensOut ?? 0) + used.tokensOut,
+    })
     if (!r.isAnswered) {
-      await update($, overseer, () => ({ status: `error: ${r.reason}`, lastAt: at }))
+      await update($, overseer, o => ({ ...o, ...count(o), status: `error: ${r.reason}`, lastAt: at }))
       return
     }
     marker = m
@@ -95,7 +103,7 @@ async function oversee($: EngineInterface, isForced: boolean) {
       const prev = await $.fs.read(`${root}/logs/overseer.md`).then(t => String(t)).catch(() => '# Overseer notes\n')
       await $.fs.write(`${root}/logs/overseer.md`, `${prev.trimEnd()}\n${lines.join('\n')}\n`)
     }
-    await update($, overseer, () => ({ status: fresh.length ? 'idle' : 'idle (nothing to say)', lastAt: at }))
+    await update($, overseer, o => ({ ...o, ...count(o), status: fresh.length ? 'idle' : 'idle (nothing to say)', lastAt: at }))
   } catch (err) {
     await update($, overseer, o => ({ ...o, status: `error: ${String(err).slice(0, 80)}` }))
   } finally {
@@ -330,6 +338,7 @@ export const register: Register = (on, options) => {
         <Box gap={1}>
           <Text bold color="magenta">OVERSEER</Text>
           <Text dimColor>{`${ov.status}${ov.lastAt ? ` · ${ago(Math.round(ov.lastAt / 1000), s.now)} ago` : ''}`}</Text>
+          <Text dimColor>{`· ${ov.calls ?? 0} calls · ${compact(ov.tokensIn ?? 0)} in · ${compact(ov.tokensOut ?? 0)} out`}</Text>
           <Button key="ask-overseer" label="Ask now" onPress={() => oversee($, true)} />
         </Box>
         {open.length === 0 && <Text dimColor>no open notes</Text>}

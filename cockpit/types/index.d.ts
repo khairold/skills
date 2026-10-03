@@ -56,7 +56,13 @@ export type CockpitNote = {
   isDismissed: boolean
 }
 
-export type CockpitOverseer = { status: string; lastAt: number }
+export type CockpitOverseer = {
+  status: string
+  lastAt: number
+  calls: number
+  tokensIn: number
+  tokensOut: number
+}
 
 declare module 'claude-code' {
   interface PluginState {

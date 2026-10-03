@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { envelope, TIMING_NOTE, matchSession, projectSlug, acceptPrompt, ago, discussPrompt, overseerMarker, parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section } from '../hooks/parse'
+import { compact, usageTotals, envelope, TIMING_NOTE, matchSession, projectSlug, acceptPrompt, ago, discussPrompt, overseerMarker, parseDeferred, parseFeed, parseGateTail, parseLock, parseOverseer, parsePlan, phaseSection, section } from '../hooks/parse'
 
 const PLAN = `# Plan
 > **Current Phase:** Phase 3
@@ -105,4 +105,12 @@ test('run session lookup', async () => {
 
 test('every send carries the timing note', async () => {
   expect(envelope('do X')).toBe(`[dot-plan cockpit · sent by the human]\ndo X\n\n${TIMING_NOTE}`)
+})
+
+test('overseer usage counts every input token', async () => {
+  expect(usageTotals({ input_tokens: 100, cache_read_input_tokens: 50, cache_creation_input_tokens: 25, output_tokens: 7 }))
+    .toEqual({ tokensIn: 175, tokensOut: 7 })
+  expect(usageTotals({ input_tokens: 10, output_tokens: 2, cache_read_input_tokens: null })).toEqual({ tokensIn: 10, tokensOut: 2 })
+  expect(usageTotals(undefined)).toEqual({ tokensIn: 0, tokensOut: 0 })
+  expect([compact(950), compact(96_400), compact(1_250_000)]).toEqual(['950', '96k', '1.3M'])
 })
