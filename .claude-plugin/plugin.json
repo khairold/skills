@@ -1,14 +1,15 @@
 {
   "name": "khairold",
-  "version": "0.6.7",
-  "description": "Khairold's skills. dot-plan: plan, run, gate, audit and close an unattended multi-phase agent build kept in .plan/, looping until an audit round comes back dry. agent-guides: per-folder guides, a short root guide, one place per fact, kept true by tests. codebase-audit: audit a codebase by lens before a refactor, fold the findings into axes of work, re-audit after a build until dry, or sweep for one recurring bug class. cockpit: a mod for watching a dot-plan run from a second session (/cockpit).",
+  "version": "0.7.0",
+  "description": "Khairold's skills. dot-plan: plan, run, gate, audit and close an unattended multi-phase agent build kept in .plan/, looping until an audit round comes back dry. agent-guides: per-folder guides, a short root guide, one place per fact, kept true by tests. codebase-audit: audit a codebase by lens before a refactor, fold the findings into axes of work, re-audit after a build until dry, or sweep for one recurring bug class. chrome-intercept-mock: drive a logged-in Chrome over DevTools, capture a page's API calls, rewrite a response and screenshot how the real UI renders it, to tell a frontend bug from a backend one. cockpit: a mod for watching a dot-plan run from a second session (/cockpit).",
   "author": {
     "name": "Khairold Safri"
   },
   "skills": [
     "./skills/dot-plan",
     "./skills/agent-guides",
-    "./skills/codebase-audit"
+    "./skills/codebase-audit",
+    "./skills/chrome-intercept-mock"
   ],
   "hooks": "./cockpit/hooks/hooks.json",
   "types": "./cockpit/types/index.d.ts",
