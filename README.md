@@ -8,6 +8,7 @@ Claude Code skills by Khairold Safri.
 | [agent-guides](skills/agent-guides/SKILL.md) | Make a codebase legible to an agent that arrives cold: a short guide beside each part of the code, a root guide cut to pointers, one place per fact, kept true by a generator and tests in your own suite. |
 | [codebase-audit](skills/codebase-audit/SKILL.md) | Audit a codebase before a refactor with one agent per lens, fold the reports into axes of work in a safe order, and hand them to a build plan; or sweep the codebase for one bug class that keeps coming back. |
 | [chrome-intercept-mock](skills/chrome-intercept-mock/SKILL.md) | Drive a logged-in Chrome over the DevTools Protocol: capture the API calls a page makes, rewrite one response in the browser and screenshot how the real UI renders it. Tells a frontend bug from a backend one when no test account has the data. |
+| [design-loop](skills/design-loop/SKILL.md) | Improve any visual output (deck, page, app screen) in rounds: the orchestrator picks review axes, contextless read-only reviewers report in parallel, the orchestrator accepts or rejects each finding, fixes and verifies on real screenshots, until a round comes back dry. |
 | [cockpit](cockpit/README.md) | A mod for watching a dot-plan run from a second session: progress, what needs you, an overseer on another model, and buttons that send your decisions to the orchestrator. |
 
 ## Install
